@@ -1,6 +1,6 @@
 ---
 title: Comtrade Env Environment Server
-emoji: 🏹
+emoji: 📊
 colorFrom: indigo
 colorTo: gray
 sdk: docker
@@ -11,245 +11,170 @@ tags:
   - openenv
 ---
 
-# Comtrade Env Environment
+# Comtrade Env — UN Trade Data Fetching Benchmark
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+An [OpenEnv](https://github.com/meta-pytorch/OpenEnv) MCP environment that benchmarks LLM agents on paginated data fetching against a simulated UN Comtrade API.
+
+The agent must fetch trade records across multiple pages, handle faults (rate limits, server errors, duplicates, page drift), deduplicate data, and submit clean output — all via three MCP tools.
+
+## Tasks (T1–T7)
+
+| ID | Name | Description |
+|----|------|-------------|
+| T1 | Single page | Fetch one page, submit. Baseline correctness. |
+| T2 | Multi-page pagination | Iterate pages until `has_more=False`. |
+| T3 | Deduplication | Pages overlap; agent must dedup by primary key. |
+| T4 | HTTP 429 retry | Rate-limit fault; agent must retry without data loss. |
+| T5 | HTTP 500 retry | Server error fault; agent must retry transient failures. |
+| T6 | Page drift | Non-deterministic page ordering; agent must handle instability. |
+| T7 | Totals trap | Summary rows mixed in; agent must drop `is_total=true` rows. |
+
+## MCP Tools
+
+```
+get_task_info()
+  → Returns task_id, description, query params (reporter, partner, flow, hs, year),
+    constraints, mock_service_url, and request budget remaining.
+
+fetch_page(page: int = 1, page_size: int = 500)
+  → Fetches one page of trade records from the mock service.
+    Returns: {rows, page, total_pages, has_more}
+    On fault: {status: 429|500, retry: true}
+
+submit_results(data_jsonl, metadata_json, run_log)
+  → Submits final deduplicated records for scoring.
+    Returns: {reward (0.0–1.0), score (0–100), breakdown, errors}
+```
+
+## Scoring (0–100 → reward 0.0–1.0)
+
+| Dimension | Weight | What it measures |
+|-----------|--------|-----------------|
+| Correctness | 30 | All expected rows present and correct |
+| Completeness | 15 | No missing records |
+| Robustness | 15 | Correct handling of 429/500 faults |
+| Efficiency | 15 | Request count relative to minimum needed |
+| Data Quality | 15 | No duplicates, no totals rows leaked |
+| Observability | 10 | `run.log` contains `task_id=`, `page=`, `request=`, `complete=` |
 
 ## Quick Start
 
-The simplest way to use the Comtrade Env environment is through the `ComtradeEnv` class:
-
 ```python
 from comtrade_env import ComtradeAction, ComtradeEnv
 
-try:
-    # Create environment from Docker image
-    comtrade_envenv = ComtradeEnv.from_docker_image("comtrade_env-env:latest")
-
-    # Reset
-    result = comtrade_envenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
-
-    for msg in messages:
-        result = comtrade_envenv.step(ComtradeAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
-
-finally:
-    # Always clean up
-    comtrade_envenv.close()
-```
-
-That's it! The `ComtradeEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
-
-## Building the Docker Image
-
-Before using the environment, you need to build the Docker image:
-
-```bash
-# From project root
-docker build -t comtrade_env-env:latest -f server/Dockerfile .
-```
-
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
-
-```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
-
-# Or specify options
-openenv push --namespace my-org --private
-```
-
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
-
-```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
-
-### Action
-**ComtradeAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**ComtradeObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
-If you already have a Comtrade Env environment server running, you can connect directly:
-
-```python
-from comtrade_env import ComtradeEnv
-
-# Connect to existing server
-comtrade_envenv = ComtradeEnv(base_url="<ENV_HTTP_URL_HERE>")
-
-# Use as normal
-result = comtrade_envenv.reset()
-result = comtrade_envenv.step(ComtradeAction(message="Hello!"))
-```
-
-Note: When connecting to an existing server, `comtrade_envenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
-The client supports context manager usage for automatic connection management:
-
-```python
-from comtrade_env import ComtradeAction, ComtradeEnv
-
-# Connect with context manager (auto-connects and closes)
 with ComtradeEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(ComtradeAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
+    result = env.reset(task_id="T2_multi_page")
+    task_info = env.call_tool("get_task_info", {})
+
+    collected = {}
+    page = 1
+    while True:
+        data = env.call_tool("fetch_page", {"page": page, "page_size": 500})
+        if data.get("status") in (429, 500):
+            data = env.call_tool("fetch_page", {"page": page, "page_size": 500})
+        for row in data.get("rows", []):
+            if row.get("is_total"):
+                continue
+            pk = "|".join(str(row.get(k, "")) for k in
+                         ("year", "reporter", "partner", "flow", "hs", "record_id"))
+            collected[pk] = row
+        if not data.get("has_more"):
+            break
+        page += 1
+
+    import json
+    data_jsonl = "\n".join(json.dumps(r) for r in collected.values())
+    metadata = json.dumps({
+        "task_id": task_info["task_id"],
+        "query": task_info["query"],
+        "row_count": len(collected),
+        "schema": list(next(iter(collected.values())).keys()) if collected else [],
+        "dedup_key": ["year", "reporter", "partner", "flow", "hs", "record_id"],
+        "totals_handling": {"enabled": True, "rows_dropped": 0},
+    })
+    result = env.call_tool("submit_results", {
+        "data_jsonl": data_jsonl,
+        "metadata_json": metadata,
+        "run_log": f"task_id={task_info['task_id']}\npage=1\nrequest=1\ncomplete=true",
+    })
+    print(f"reward={result['reward']:.4f}  score={result['score']:.1f}")
+    print(result['breakdown'])
 ```
 
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
-
-```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    ComtradeEnvironment,  # Pass class, not instance
-    ComtradeAction,
-    ComtradeObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
-)
-```
-
-Then multiple clients can connect simultaneously:
-
-```python
-from comtrade_env import ComtradeAction, ComtradeEnv
-from concurrent.futures import ThreadPoolExecutor
-
-def run_episode(client_id: int):
-    with ComtradeEnv(base_url="http://localhost:8000") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(ComtradeAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
-
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
-```
-
-## Development & Testing
-
-### Direct Environment Testing
-
-Test the environment logic directly without starting the HTTP server:
+## Running the Server
 
 ```bash
-# From the server directory
-python3 server/comtrade_env_environment.py
+# From the comtrade_env directory
+uvicorn server.app:app --port 8000
+
+# Or with Docker
+docker build -t comtrade-env:latest -f server/Dockerfile .
+docker run -p 8000:8000 comtrade-env:latest
 ```
 
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
-
-### Running Locally
-
-Run the server locally for development:
+## Smoke Test (rule-based agent, no LLM required)
 
 ```bash
-uvicorn server.app:app --reload
+# Start the server first, then:
+cd llm_agent
+python smoke_test.py --env-url http://localhost:8000 --task T1_single_page
+```
+
+## GRPO Training
+
+Train an LLM agent with Group Relative Policy Optimization:
+
+```bash
+cd llm_agent
+
+# Using a local Ollama/vLLM endpoint (rollout-only, no gradient updates)
+python train_grpo.py \
+    --env-url http://localhost:8000 \
+    --api-url http://localhost:11434/v1 \
+    --api-model qwen2.5:7b \
+    --iterations 200
+
+# Using a HuggingFace model (full training with gradients)
+python train_grpo.py \
+    --env-url http://localhost:8000 \
+    --hf-model Qwen/Qwen2.5-7B-Instruct \
+    --iterations 200 \
+    --save-dir ./checkpoints
 ```
 
 ## Project Structure
 
 ```
 comtrade_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # ComtradeEnv client
-├── models.py              # Action and Observation models
+├── __init__.py                  # Module exports
+├── README.md                    # This file
+├── openenv.yaml                 # OpenEnv manifest
+├── pyproject.toml               # Project dependencies
+├── client.py                    # ComtradeEnv HTTP/WebSocket client
+├── models.py                    # ComtradeAction / ComtradeObservation
 └── server/
-    ├── __init__.py        # Server module exports
-    ├── comtrade_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+    ├── app.py                   # FastAPI app (HTTP + WebSocket)
+    ├── comtrade_env_environment.py  # Core MCP environment logic
+    ├── tasks.py                 # Task definitions (T1–T7)
+    ├── judge.py                 # Scoring engine
+    ├── mock_service/            # Embedded mock Comtrade API
+    │   ├── app.py               # FastAPI mock with fault injection
+    │   └── fixtures/            # Ground-truth data per task
+    └── Dockerfile               # Container image
 ```
+
+## Deploying to Hugging Face Spaces
+
+```bash
+# From the environment directory
+openenv push
+
+# Or specify a target
+openenv push --repo-id my-org/comtrade-env --private
+```
+
+After deployment the space exposes:
+- **`/web`** — Interactive UI
+- **`/docs`** — OpenAPI / Swagger
+- **`/health`** — Health check
+- **`/ws`** — WebSocket endpoint for persistent sessions
