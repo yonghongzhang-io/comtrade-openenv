@@ -46,7 +46,7 @@ app = create_app(
     ComtradeAction,
     ComtradeObservation,
     env_name="comtrade_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=8,  # supports concurrent GRPO rollouts (SUPPORTS_CONCURRENT_SESSIONS=True)
 )
 
 

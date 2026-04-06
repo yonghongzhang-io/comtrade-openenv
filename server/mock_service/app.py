@@ -150,7 +150,8 @@ def _make_totals_row(page_rows: List[Dict[str, Any]], task_id: str, page: int, q
         "netWeight": net_weight,
         "qty": qty,
         "record_id": f"{task_id}-TOTAL-{page:04d}",
-        "isTotal": True,
+        "isTotal": True,      # camelCase (legacy field name)
+        "is_total": True,     # snake_case (canonical field name per spec)
     }
 
 
@@ -281,22 +282,35 @@ _TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Per-task request counters and fault state (keyed by task_id) for /api/data
+# Per-episode request counters and fault state.
+# Keyed by (task_id, episode_id) to isolate concurrent agents running the same task.
+# Fallback key when no episode_id provided: (task_id, "__default__")
 _API_STATE: Dict[str, Dict[str, Any]] = {}
 
 
-def _get_api_state(task_id: str) -> Dict[str, Any]:
-    if task_id not in _API_STATE:
-        _API_STATE[task_id] = {"request_count": 0, "faults_seen": set(), "last_page_rows": []}
-    return _API_STATE[task_id]
+def _episode_key(task_id: str, episode_id: Optional[str]) -> str:
+    return f"{task_id}::{episode_id or '__default__'}"
+
+
+def _get_api_state(task_id: str, episode_id: Optional[str]) -> Dict[str, Any]:
+    key = _episode_key(task_id, episode_id)
+    if key not in _API_STATE:
+        _API_STATE[key] = {"request_count": 0, "faults_seen": set(), "last_page_rows": []}
+    return _API_STATE[key]
 
 
 @app.post("/api/reset")
 def api_reset(body: Dict[str, Any] = {}) -> Dict[str, Any]:
-    """Reset per-task request counters (call at episode start)."""
+    """Reset per-episode request counters (call at episode start).
+
+    Pass task_id + episode_id to reset a specific episode's state,
+    or omit both to reset all state.
+    """
     task_id = body.get("task_id") if body else None
+    episode_id = body.get("episode_id") if body else None
     if task_id:
-        _API_STATE.pop(task_id, None)
+        key = _episode_key(task_id, episode_id)
+        _API_STATE.pop(key, None)
     else:
         _API_STATE.clear()
     return {"ok": True}
@@ -312,12 +326,16 @@ def api_data(
     flow: Optional[str] = Query(None),
     hs: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
+    episode_id: Optional[str] = Query(None),  # isolates concurrent agents per episode
 ) -> Dict[str, Any]:
     """
-    Stateless paginated data endpoint.
+    Paginated data endpoint for comtrade_env.
 
-    The comtrade_env environment calls this with task_id + query params on each
-    fetch_page() invocation.  No prior /configure call is needed.
+    The environment calls this with task_id + query params on each fetch_page()
+    invocation. No prior /configure call is needed.
+
+    Pass episode_id (from env.reset() response) to isolate concurrent agents
+    running the same task simultaneously during GRPO training rollouts.
 
     Returns:
       rows        — list of record dicts for this page
@@ -338,10 +356,13 @@ def api_data(
 
     q = {"reporter": reporter, "partner": partner, "flow": flow, "hs": hs, "year": year}
 
-    st = _get_api_state(task_id)
+    # Isolate state per (task_id, episode_id) so concurrent agents don't interfere
+    st = _get_api_state(task_id, episode_id)
     st["request_count"] += 1
 
     # Fault injection -------------------------------------------------------
+    # mode="pagination": T2 multi-page — no fault, just standard pagination.
+    # Explicit branch here so the intent is clear and grep-able.
     fail_on = fi.get("fail_on", [])
     if mode == "rate_limit" and st["request_count"] in fail_on:
         key = ("rate_limit", st["request_count"])
@@ -354,6 +375,8 @@ def api_data(
         if key not in st["faults_seen"]:
             st["faults_seen"].add(key)
             raise HTTPException(status_code=500, detail="Simulated server error")
+
+    # mode="none" and mode="pagination" both fall through to normal data delivery
 
     # Base rows -------------------------------------------------------------
     rows = _get_base_rows(task_id, q, total_rows)

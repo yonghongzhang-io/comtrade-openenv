@@ -142,6 +142,7 @@ class ComtradeEnvironment(MCPEnvironment):
                 "task_id": task.task_id,
                 "page": page,
                 "page_size": page_size,
+                "episode_id": self._state.episode_id,  # isolates concurrent agents
                 **task.query,
             })
             url = f"http://localhost:{MOCK_SERVICE_PORT}/api/data?{params}"

@@ -1,33 +1,61 @@
 # Mock Fixtures
 
-These JSONL files provide small, deterministic datasets for the mock service.
+This directory is intentionally empty — no JSONL fixture files are needed.
+
+The mock service generates all trade records **deterministically at runtime**
+using a seeded PRNG keyed on `(task_id, reporter, partner, flow, hs, year)`:
+
+```python
+seed = sha256(f"{task_id}:{reporter}:{partner}:{flow}:{hs}:{year}")
+rng  = random.Random(seed)
+rows = [{"year": ..., "tradeValue": rng.randint(...), ...} for i in range(total_rows)]
+```
+
+This means:
+- The same query always returns the same data (reproducible across runs)
+- No large fixture files need to be stored in git
+- Any test or evaluation can be replicated without external data
 
 ## Schema
 
-Each line is a JSON object with at least:
+Each generated row contains:
 
-- `year`, `reporter`, `partner`, `flow`, `hs`
-- `tradeValue`, `netWeight`, `qty`
-- `record_id`
+| Field       | Type   | Description                    |
+|-------------|--------|--------------------------------|
+| `year`      | int    | Trade year                     |
+| `reporter`  | str    | Reporter country code (ISO M49)|
+| `partner`   | str    | Partner country code (ISO M49) |
+| `flow`      | str    | Trade flow (`M`=import, `X`=export) |
+| `hs`        | str    | HS product code                |
+| `cmdCode`   | str    | Commodity code (same as hs)    |
+| `tradeValue`| int    | Trade value (USD)              |
+| `netWeight` | int    | Net weight (kg)                |
+| `qty`       | int    | Quantity                       |
+| `record_id` | str    | Unique record identifier       |
 
-Extra fields are allowed. Blank lines are ignored.
+## Totals Rows (T7 only)
 
-## Totals Marker
+In `totals_trap` mode the mock service prepends one synthetic totals row to
+every page response. Totals rows can be identified by **either** field name
+(both are set for compatibility):
 
-Totals rows use the following marker (all must match):
+- `isTotal = true`  (camelCase)
+- `is_total = true` (snake_case)
+- `partner = "WLD"`
+- `hs = "TOTAL"`
 
-- `isTotal` is `true`
-- `partner` equals `"WLD"`
-- `hs` equals `"TOTAL"`
+Agents must filter **all** rows matching these markers before submitting.
 
-Totals rows should be dropped by the Purple agent before writing `data.jsonl`.
+## To Add Custom Fixtures
 
-**Note:** In totals_trap mode, the mock service prepends one synthetic totals row to every /records response, so totals rows may be numerous depending on the client's pagination strategy; agents must filter all rows matching (isTotal=true AND partner="WLD" AND hs="TOTAL").
+If you want the mock to serve hand-crafted data instead of generated rows,
+place a JSONL file named `<task_id>.jsonl` in this directory. The loader
+checks for fixture files first and falls back to procedural generation:
 
-## Regenerating Fixtures
-
-You can create synthetic fixtures via:
-
-```
-python3 scripts/gen_fixtures.py
+```python
+def _get_base_rows(task_id, q, total_rows):
+    fixture = _load_fixture(task_id)   # returns None if no file
+    if fixture:
+        return fixture
+    return _generate_rows(task_id, q, total_rows)
 ```
