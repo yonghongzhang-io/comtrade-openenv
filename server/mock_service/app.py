@@ -292,9 +292,18 @@ def _episode_key(task_id: str, episode_id: Optional[str]) -> str:
     return f"{task_id}::{episode_id or '__default__'}"
 
 
+_API_STATE_MAX_ENTRIES = 2000  # evict oldest when exceeded (prevents memory growth during GRPO)
+_API_STATE_LAST_PAGE_MAX = 100  # max rows kept in last_page_rows (enough for cross-page dedup)
+
+
 def _get_api_state(task_id: str, episode_id: Optional[str]) -> Dict[str, Any]:
     key = _episode_key(task_id, episode_id)
     if key not in _API_STATE:
+        # Evict oldest 10% of entries when at capacity
+        if len(_API_STATE) >= _API_STATE_MAX_ENTRIES:
+            evict_n = _API_STATE_MAX_ENTRIES // 10
+            for old_key in list(_API_STATE.keys())[:evict_n]:
+                del _API_STATE[old_key]
         _API_STATE[key] = {"request_count": 0, "faults_seen": set(), "last_page_rows": []}
     return _API_STATE[key]
 
@@ -401,7 +410,8 @@ def api_data(
         totals_row = _make_totals_row(page_rows, task_id, page, q)
         page_rows = [totals_row] + page_rows
 
-    st["last_page_rows"] = page_rows
+    # Trim last_page_rows to cap memory usage per episode key
+    st["last_page_rows"] = page_rows[:_API_STATE_LAST_PAGE_MAX]
 
     total_pages = max(1, (total_rows + effective_page_size - 1) // effective_page_size)
     has_more = page < total_pages

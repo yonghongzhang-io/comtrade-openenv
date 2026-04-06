@@ -44,6 +44,11 @@ from openenv.core.env_server.types import Action, Observation, State
 logger = logging.getLogger(__name__)
 
 MOCK_SERVICE_PORT = int(os.environ.get("MOCK_SERVICE_PORT", "7654"))
+
+# Module-level coordination so parallel ComtradeEnvironment inits don't
+# all try to start the mock service on the same port simultaneously.
+_mock_service_lock = threading.Lock()
+_mock_service_started = threading.Event()
 MAX_REQUESTS_PER_EPISODE = 100
 MAX_SCORE = 100.0
 
@@ -221,19 +226,38 @@ class ComtradeEnvironment(MCPEnvironment):
         if not mock_dir.exists():
             logger.warning("mock_service not found")
             return
-        try:
-            self._mock_proc = subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "app:app",
-                 "--host", "0.0.0.0", "--port", str(MOCK_SERVICE_PORT),
-                 "--log-level", "warning"],
-                cwd=str(mock_dir),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            time.sleep(2.0)
-            logger.info(f"Mock service started on :{MOCK_SERVICE_PORT}")
-        except Exception as e:
-            logger.warning(f"Mock service failed to start: {e}")
+
+        # Check if already running (handles concurrent ComtradeEnvironment inits
+        # during parallel GRPO rollouts — only one instance needs to start the service).
+        with _mock_service_lock:
+            if _mock_service_started.is_set():
+                logger.debug(f"Mock service already running on :{MOCK_SERVICE_PORT}, reusing.")
+                return
+            # Also probe via HTTP in case it was started by an external process
+            try:
+                urllib.request.urlopen(
+                    f"http://localhost:{MOCK_SERVICE_PORT}/docs", timeout=1.0
+                )
+                _mock_service_started.set()
+                logger.info(f"Mock service already running externally on :{MOCK_SERVICE_PORT}.")
+                return
+            except Exception:
+                pass  # Not running — start it below
+
+            try:
+                self._mock_proc = subprocess.Popen(
+                    [sys.executable, "-m", "uvicorn", "app:app",
+                     "--host", "0.0.0.0", "--port", str(MOCK_SERVICE_PORT),
+                     "--log-level", "warning"],
+                    cwd=str(mock_dir),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                time.sleep(2.0)
+                _mock_service_started.set()
+                logger.info(f"Mock service started on :{MOCK_SERVICE_PORT}")
+            except Exception as e:
+                logger.warning(f"Mock service failed to start: {e}")
 
     def reset(
         self,
