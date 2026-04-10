@@ -117,20 +117,22 @@ def _apply_duplicates(
     request_count: int,
     dup_rate: float,
     cross_dup_rate: float,
+    last_page_rows: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     if not page_rows:
         return page_rows
-    rows = list(page_rows)
+    rows = list(page_rows)  # defensive copy — never mutate input
     rng = random.Random(_stable_seed(f"{task_id}:dup:{request_count}"))
     within = int(len(rows) * dup_rate)
     for j in range(within):
         src_idx = j % len(rows)
         dst_idx = rng.randrange(0, len(rows))
         rows[dst_idx] = rows[src_idx]
-    if STATE["last_page_rows"] and cross_dup_rate > 0:
+    prev = last_page_rows or []
+    if prev and cross_dup_rate > 0:
         cross = int(len(rows) * cross_dup_rate)
         for _ in range(cross):
-            src = rng.choice(STATE["last_page_rows"])
+            src = rng.choice(prev)
             dst_idx = rng.randrange(0, len(rows))
             rows[dst_idx] = src
     return rows
@@ -372,14 +374,14 @@ def api_data(
     # Fault injection -------------------------------------------------------
     # mode="pagination": T2 multi-page — no fault, just standard pagination.
     # Explicit branch here so the intent is clear and grep-able.
-    fail_on = fi.get("fail_on", [])
-    if mode == "rate_limit" and st["request_count"] in fail_on:
+    fail_on = fi.get("fail_on", fi.get("rate_limit_fail_on", []))
+    if mode in {"rate_limit", "mixed"} and st["request_count"] in fail_on:
         key = ("rate_limit", st["request_count"])
         if key not in st["faults_seen"]:
             st["faults_seen"].add(key)
             raise HTTPException(status_code=429, detail="Simulated rate limit")
 
-    if mode == "server_error" and st["request_count"] in fail_on:
+    if mode in {"server_error"} and st["request_count"] in fail_on:
         key = ("server_error", st["request_count"])
         if key not in st["faults_seen"]:
             st["faults_seen"].add(key)
@@ -399,12 +401,13 @@ def api_data(
     page_rows = list(rows[start:end])
 
     # Fault injection on page rows ------------------------------------------
-    if mode == "duplicates":
+    if mode in {"duplicates", "mixed"}:
         dup_rate = float(fi.get("duplicate_rate", 0.06))
         cross_rate = float(fi.get("cross_page_duplicate_rate", 0.02))
-        # Temporarily set STATE for the helper function
-        STATE["last_page_rows"] = st["last_page_rows"]
-        page_rows = _apply_duplicates(page_rows, task_id, st["request_count"], dup_rate, cross_rate)
+        page_rows = _apply_duplicates(
+            page_rows, task_id, st["request_count"], dup_rate, cross_rate,
+            last_page_rows=st["last_page_rows"],
+        )
 
     if mode == "totals_trap":
         totals_row = _make_totals_row(page_rows, task_id, page, q)

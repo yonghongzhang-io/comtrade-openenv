@@ -82,6 +82,7 @@ ALL_TASK_IDS = [
     "T5_server_error_500",
     "T6_page_drift",
     "T7_totals_trap",
+    "T8_mixed_faults",
 ]
 
 
@@ -117,8 +118,10 @@ def grpo_loss(
     surrogate = torch.min(ratio * adv, clipped_ratio * adv)
     surrogate = (surrogate * attention_mask).sum(-1) / attention_mask.sum(-1).clamp(min=1)
 
-    # KL penalty: E[π/π_ref - 1 - log(π/π_ref)]
-    kl = torch.exp(ref_log_probs - log_probs) - 1 - (ref_log_probs - log_probs)
+    # KL penalty (reverse KL): D_KL(π_new || π_ref) = E[π_new/π_ref - 1 - log(π_new/π_ref)]
+    # = E[exp(log_π_new - log_π_ref) - 1 - (log_π_new - log_π_ref)]
+    log_ratio_ref = log_probs - ref_log_probs
+    kl = torch.exp(log_ratio_ref) - 1 - log_ratio_ref
     kl = (kl * attention_mask).sum(-1) / attention_mask.sum(-1).clamp(min=1)
 
     loss = -(surrogate - kl_coeff * kl).mean()
@@ -161,18 +164,33 @@ def tokenise_trajectories(
             padding="max_length",
             return_tensors="pt",
         )
-        # Compute prompt length in the joint encoding robustly:
-        # Encode prompt WITHOUT special tokens to get the raw subword count,
-        # then add 1 if the full encoding starts with a BOS token.
-        # This avoids off-by-one errors when the tokenizer adds EOS to a
-        # standalone prompt but not in the middle of a concatenated sequence.
-        prompt_ids_raw = tokenizer.encode(prompt, add_special_tokens=False)
-        full_ids = enc_full["input_ids"][0]
-        has_bos = (
-            tokenizer.bos_token_id is not None
-            and full_ids[0].item() == tokenizer.bos_token_id
+        # Compute prompt length in the joint encoding robustly.
+        # Strategy: encode prompt WITH the same add_special_tokens setting as
+        # full_text, but WITHOUT padding.  Then prompt_len = number of tokens
+        # produced (includes BOS if the tokenizer adds one).  This is safe for
+        # all tokenizer families (Qwen, Llama, Mistral, GPT-NeoX, etc.) because
+        # the prefix of full_text is the prompt — the tokenizer will produce the
+        # same tokens at the start regardless of what follows.
+        enc_prompt_for_len = tokenizer(
+            prompt,
+            add_special_tokens=True,   # same as enc_full
+            truncation=True,
+            max_length=max_length,
+            return_tensors="pt",
         )
-        prompt_len = len(prompt_ids_raw) + (1 if has_bos else 0)
+        prompt_len = enc_prompt_for_len["input_ids"].shape[1]
+        # If the standalone encoding added EOS but enc_full did not (because
+        # text continues), subtract 1.  Detect by checking if the last prompt
+        # token is EOS and the corresponding position in full_ids differs.
+        full_ids = enc_full["input_ids"][0]
+        if (
+            tokenizer.eos_token_id is not None
+            and prompt_len > 0
+            and prompt_len <= full_ids.shape[0]
+            and enc_prompt_for_len["input_ids"][0, -1].item() == tokenizer.eos_token_id
+            and full_ids[prompt_len - 1].item() != tokenizer.eos_token_id
+        ):
+            prompt_len -= 1
         # Clamp to valid range in case of truncation
         prompt_len = min(prompt_len, full_ids.shape[0])
         comp_mask = torch.zeros_like(enc_full["attention_mask"])

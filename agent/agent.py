@@ -251,6 +251,10 @@ class ComtradeAgent:
         ]
 
         collected_rows: dict[str, dict] = {}  # deduplicated by primary key
+        totals_dropped: int = 0  # count of is_total rows filtered
+        dedup_key_fields = task_meta.get("dedup_key",
+                           ["year", "reporter", "partner", "flow", "hs", "record_id"])
+        ep_start_time = time.time()
         run_log_lines: list[str] = []
         run_log_lines.append(f"task_id={task_meta.get('task_id', 'unknown')}")
 
@@ -312,8 +316,9 @@ class ComtradeAgent:
                 run_log_lines.append(f"page={page_num}")
                 for row in tool_result["rows"]:
                     if row.get("isTotal") or row.get("is_total"):
+                        totals_dropped += 1
                         continue  # drop totals trap (mock returns isTotal, spec says is_total)
-                    pk = _primary_key(row)
+                    pk = _primary_key(row, dedup_key_fields)
                     collected_rows[pk] = row
 
             # ---- Record step ----
@@ -357,8 +362,9 @@ class ComtradeAgent:
                     "query": task_meta.get("query", {}),
                     "row_count": len(collected_rows),
                     "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
-                    "dedup_key": ["year", "reporter", "partner", "flow", "hs", "record_id"],
-                    "totals_handling": {"enabled": True, "rows_dropped": 0},
+                    "dedup_key": dedup_key_fields,
+                    "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
+                    "execution_time": round(time.time() - ep_start_time, 2),
                 })
                 run_log = "\n".join(run_log_lines + ["complete=true"])
                 submit_result = self.env.submit_results(data_jsonl, metadata, run_log)
@@ -386,7 +392,9 @@ class ComtradeAgent:
                 "query": task_meta.get("query", {}),
                 "row_count": len(collected_rows),
                 "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
-                "totals_handling": "dropped",
+                "dedup_key": dedup_key_fields,
+                "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
+                "execution_time": round(time.time() - ep_start_time, 2),
             }
             run_log = "\n".join(run_log_lines)
             try:
@@ -421,5 +429,8 @@ class ComtradeAgent:
         )
 
 
-def _primary_key(row: dict) -> str:
-    return "|".join(str(row.get(k, "")) for k in ("year", "reporter", "partner", "flow", "hs", "record_id"))
+_DEFAULT_DEDUP_FIELDS = ("year", "reporter", "partner", "flow", "hs", "record_id")
+
+
+def _primary_key(row: dict, fields: tuple | list = _DEFAULT_DEDUP_FIELDS) -> str:
+    return "|".join(str(row.get(k, "")) for k in fields)

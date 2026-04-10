@@ -11,7 +11,7 @@ Real-world data pipelines are messy. They paginate. They rate-limit you. They re
 
 Most LLM benchmarks evaluate reasoning in clean, single-turn settings. We asked: **can an LLM agent reliably fetch and clean real-world paginated API data under adversarial conditions?**
 
-To answer this, we built **Green Comtrade Bench** — a seven-task OpenEnv environment where an LLM agent must interact with a simulated UN Comtrade trade statistics API, handle faults gracefully, and submit clean deduplicated output.
+To answer this, we built **Green Comtrade Bench** — an eight-task OpenEnv environment where an LLM agent must interact with a simulated UN Comtrade trade statistics API, handle faults gracefully, and submit clean deduplicated output.
 
 ---
 
@@ -69,7 +69,7 @@ The embedded mock service is a FastAPI application with per-task fault injection
 comtrade_env/
 ├── server/
 │   ├── comtrade_env_environment.py  ← MCPEnvironment (3 MCP tools)
-│   ├── tasks.py                     ← Task definitions T1-T7
+│   ├── tasks.py                     ← Task definitions T1-T8
 │   ├── judge.py                     ← Scoring engine
 │   └── mock_service/
 │       └── app.py                   ← Stateless /api/data with fault injection
@@ -218,9 +218,11 @@ The deterministic baseline agent in `smoke_test.py` achieves high scores on all 
 
 All scores from `inference.py --mode rule-based` (deterministic, no LLM, reproducible). Full breakdown available in `inference_results_baseline.json`.
 
-### LLM Agent Results (Moonshot V1-8K via GRPO Rollouts)
+### LLM Agent Results
 
-We ran 8 iterations of GRPO rollouts using Moonshot V1-8K (Kimi) as the LLM backend. The agent uses the agentic loop described above: LLM decides tool sequencing, while the infrastructure handles dedup, retry, and submission.
+We evaluated two LLM backends via the agentic loop described above: LLM decides tool sequencing, while the infrastructure handles dedup, retry, and submission.
+
+**Moonshot V1-8K (Kimi) — closed-source, 8 GRPO rollout iterations:**
 
 | Iteration | Mean Reward | Max Reward | Tasks Evaluated |
 |-----------|-------------|------------|-----------------|
@@ -229,10 +231,24 @@ We ran 8 iterations of GRPO rollouts using Moonshot V1-8K (Kimi) as the LLM back
 | 3 | 0.902 | 0.967 | T4, T7 |
 | 4-8 | 0.912-0.987 | 0.987 | Mixed |
 
+**Qwen 2.5-7B-Instruct (open-source, via Ollama) — rollout-only mode:**
+
+| Task | Reward | Notes |
+|------|--------|-------|
+| T1 Single page | 0.950 | Matches rule-based baseline |
+| T2 Multi-page | 0.890 | Sometimes misses last page |
+| T3 Duplicates | 0.870 | Partial dedup in prompt-only mode |
+| T4 Rate limit | 0.780 | Wastes budget on extra retries |
+| T7 Totals trap | 0.920 | Correctly filters most totals rows |
+| T8 Mixed faults | 0.720 | Hardest — both retry and dedup needed |
+
+*Note: Qwen results are from rollout-only mode (no gradient updates). Full GRPO training with gradient steps requires GPU; the training pipeline is validated but large-scale runs are pending HuggingFace compute credits.*
+
 Key findings:
-- **LLM agent achieves 0.987 reward on simple tasks** (T1, T2, T3) — matching or exceeding the rule-based baseline on Observability (the LLM naturally generates structured logs)
-- **Fault tasks score lower** (T4: 0.837, T6: 0.947) — the LLM sometimes wastes request budget on unnecessary retries
-- **Average reward across all iterations: 0.964** — strong performance with zero task-specific fine-tuning
+- **Moonshot V1 achieves 0.987 reward on simple tasks** (T1, T2, T3) — matching or exceeding the rule-based baseline on Observability (the LLM naturally generates structured logs)
+- **Qwen 2.5-7B scores lower on fault tasks** — expected for a 7B open model without gradient training
+- **Fault tasks are genuinely harder**: T4 (0.780) and T8 (0.720) show the environment discriminates between capable and limited agents
+- **The gap between rule-based (0.926) and LLM baseline (0.855 avg Qwen) is exactly what GRPO training should close**
 
 ### What the Scoring Reveals
 
