@@ -282,6 +282,15 @@ _TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
         "constraints": {"page_size": 250, "total_rows": 750},
         "fault_injection": {"mode": "totals_trap"},
     },
+    "T8_mixed_faults": {
+        "constraints": {"page_size": 20, "total_rows": 60},
+        "fault_injection": {
+            "mode": "mixed",
+            "rate_limit_fail_on": [2, 5],
+            "duplicate_rate": 0.10,
+            "cross_page_duplicate_rate": 0.05,
+        },
+    },
 }
 
 # Per-episode request counters and fault state.
