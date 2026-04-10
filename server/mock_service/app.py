@@ -291,6 +291,24 @@ _TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
             "cross_page_duplicate_rate": 0.05,
         },
     },
+    "T9_adaptive_adversary": {
+        "constraints": {"page_size": 15, "total_rows": 75},
+        "fault_injection": {
+            "mode": "adaptive",
+            "initial_duplicate_rate": 0.05,
+            "escalation_per_page": 0.03,
+            "adaptive_429_after_page": 3,
+            "adaptive_totals_after_page": 4,
+        },
+    },
+    "T10_multi_agent_coop": {
+        "constraints": {"page_size": 10, "total_rows": 80, "multi_agent": True, "num_agents": 2},
+        "fault_injection": {
+            "mode": "duplicates",
+            "duplicate_rate": 0.05,
+            "cross_page_duplicate_rate": 0.02,
+        },
+    },
 }
 
 # Per-episode request counters and fault state.
@@ -421,6 +439,34 @@ def api_data(
     if mode == "totals_trap":
         totals_row = _make_totals_row(page_rows, task_id, page, q)
         page_rows = [totals_row] + page_rows
+
+    # --- T9: Adaptive adversary — escalate faults based on page progress ---
+    if mode == "adaptive":
+        escalation = float(fi.get("escalation_per_page", 0.03))
+        initial_dup = float(fi.get("initial_duplicate_rate", 0.05))
+        adaptive_429_after = int(fi.get("adaptive_429_after_page", 3))
+        adaptive_totals_after = int(fi.get("adaptive_totals_after_page", 4))
+
+        # Escalating duplicate rate: increases with each page fetched
+        current_dup_rate = min(initial_dup + escalation * (page - 1), 0.40)
+        if current_dup_rate > 0 and page_rows:
+            page_rows = _apply_duplicates(
+                page_rows, task_id, st["request_count"],
+                current_dup_rate, current_dup_rate * 0.5,
+                last_page_rows=st["last_page_rows"],
+            )
+
+        # Adaptive 429: starts injecting after a threshold page
+        if page > adaptive_429_after and st["request_count"] % 3 == 0:
+            key = ("adaptive_429", st["request_count"])
+            if key not in st["faults_seen"]:
+                st["faults_seen"].add(key)
+                raise HTTPException(status_code=429, detail="Adaptive rate limit (escalated)")
+
+        # Adaptive totals: inject totals rows on later pages
+        if page > adaptive_totals_after and page_rows:
+            totals_row = _make_totals_row(page_rows, task_id, page, q)
+            page_rows = [totals_row] + page_rows
 
     # Trim last_page_rows to cap memory usage per episode key
     st["last_page_rows"] = page_rows[:_API_STATE_LAST_PAGE_MAX]

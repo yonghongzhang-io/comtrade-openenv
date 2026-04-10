@@ -62,6 +62,9 @@ comtrade_env/
 | T5 | HTTP 500 retry | Server error fault; retry transient failures. |
 | T6 | Page drift | Non-deterministic page ordering; handle instability. |
 | T7 | Totals trap | Summary rows mixed in; drop `is_total=true` rows. |
+| T8 | Mixed faults | 429 rate-limit + cross-page duplicates simultaneously. |
+| **T9** | **Adaptive adversary** | **Faults escalate mid-episode based on agent progress.** |
+| **T10** | **Multi-agent coop** | **Two agents share halved budget; implicit coordination.** |
 
 ## MCP Tools
 
@@ -170,7 +173,9 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 | T6 Page drift | 94.3 | 0.943 |
 | T7 Totals trap | 96.0 | 0.960 |
 | T8 Mixed faults | 81.0 | 0.810 |
-| **Average** | **91.1** | **0.911** |
+| T9 Adaptive adversary | 96.9 | 0.969 |
+| T10 Multi-agent coop | 98.0 | 0.980 |
+| **Average** | **91.3** | **0.913** |
 
 ![Benchmark Results](benchmark_results.png)
 

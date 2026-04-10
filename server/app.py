@@ -179,7 +179,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="status-bar">
     <div class="status-item"><span class="dot green"></span> Environment Online</div>
     <div class="status-item"><span class="dot green"></span> Mock Service Active</div>
-    <div class="status-item">8 Tasks &middot; 3 MCP Tools &middot; 6 Scoring Dimensions</div>
+    <div class="status-item">10 Tasks &middot; 3 MCP Tools &middot; 6 Scoring Dimensions</div>
   </div>
 
   <!-- Action buttons -->
@@ -205,6 +205,8 @@ LANDING_HTML = """<!DOCTYPE html>
       <tr><td class="task-id">T6</td><td>Page Drift</td><td>Non-deterministic page order</td><td><span class="difficulty hard">Hard</span></td></tr>
       <tr><td class="task-id">T7</td><td>Totals Trap</td><td>Drop summary rows (<code>is_total=true</code>)</td><td><span class="difficulty hard">Hard</span></td></tr>
       <tr><td class="task-id">T8</td><td>Mixed Faults</td><td>429 rate-limit AND cross-page duplicates simultaneously</td><td><span class="difficulty hard">Hard</span></td></tr>
+      <tr><td class="task-id">T9</td><td>Adaptive Adversary</td><td>Faults escalate mid-episode based on agent progress</td><td><span class="difficulty hard" style="background:rgba(239,68,68,.25);color:#fca5a5;">Novel</span></td></tr>
+      <tr><td class="task-id">T10</td><td>Multi-Agent Coop</td><td>Two agents share halved budget, implicit coordination</td><td><span class="difficulty hard" style="background:rgba(239,68,68,.25);color:#fca5a5;">Novel</span></td></tr>
     </tbody>
   </table>
 

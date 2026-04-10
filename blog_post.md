@@ -60,7 +60,17 @@ This minimal interface mirrors how real API agents are constrained: the agent ca
 | T7 | `is_total=true` summary rows mixed in | Totals-trap filtering | Hard |
 | T8 | 429 rate-limit + cross-page duplicates | Both retry AND dedup simultaneously | Hard |
 
-Tasks are drawn from real UN Comtrade API behaviors: the pagination drift, duplicate records, and totals rows are documented failure modes that production ETL pipelines routinely encounter. T8 is the hardest task — it combines two independent failure modes that must both be handled correctly.
+Tasks T1–T8 are drawn from real UN Comtrade API behaviors: pagination drift, duplicate records, and totals rows are documented failure modes that production ETL pipelines routinely encounter.
+
+### Novel Tasks — Beyond Static Benchmarks
+
+ComtradeBench goes beyond static fault injection with two novel task types that no existing RL benchmark offers:
+
+**T9: Adaptive Adversary** — The environment observes the agent's progress and *dynamically escalates* fault intensity mid-episode. Initial pages have 5% duplicate rate; each successful fetch increases it by 3%. After page 3, the environment starts injecting HTTP 429 errors. After page 4, totals rows appear. This creates a **distribution shift within a single episode** — the agent must continuously adapt its strategy rather than relying on a fixed policy. This models real-world API degradation where services throttle heavy consumers progressively.
+
+**T10: Multi-Agent Cooperative** — Two independent agents share a halved request budget (50 instead of 100). Each agent can only see its own fetched pages. They must *implicitly coordinate* to avoid duplicating work (wasting budget) while ensuring complete page coverage. This tests **emergent cooperation without explicit communication** — a key challenge in multi-agent RL that has applications in distributed data pipelines, web crawling, and federated learning.
+
+These novel tasks transform ComtradeBench from a static benchmark into a **dynamic, adaptive training environment** that challenges both single-agent robustness (T9) and multi-agent coordination (T10).
 
 ### Mock Service Architecture
 

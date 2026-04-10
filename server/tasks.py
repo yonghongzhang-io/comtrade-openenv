@@ -1,6 +1,6 @@
 """Task definitions for the UN Comtrade Benchmark (Green Comtrade Bench).
 
-Tasks T1–T8 cover the full spectrum of real-world data-fetching challenges:
+Tasks T1–T10 cover the full spectrum of real-world data-fetching challenges:
 
   T1  Single page — baseline correctness + schema validation
   T2  Multi-page pagination — merge multiple pages correctly
@@ -10,7 +10,12 @@ Tasks T1–T8 cover the full spectrum of real-world data-fetching challenges:
   T6  Page drift — non-deterministic page ordering; canonicalize + dedup
   T7  Totals trap — drop summary rows (is_total=True marker)
   T8  Mixed faults — 429 rate-limit AND cross-page duplicates simultaneously
-                     (hardest task: requires both resilience and clean dedup)
+
+  Novel tasks (unique to ComtradeBench):
+  T9  Adaptive adversary — fault intensity escalates mid-episode based on
+                           agent's success; tests robustness under distribution shift
+  T10 Multi-agent cooperative — two agents share a halved request budget;
+                                must implicitly coordinate page coverage
 
 Each Task is a frozen dataclass with:
   task_id       str  — unique identifier (e.g. "T1_single_page")
@@ -166,6 +171,55 @@ def get_tasks() -> List[Task]:
                 "rate_limit_fail_on": [2, 5],          # 429 on 2nd and 5th requests
                 "duplicate_rate": 0.10,                 # 10% within-page duplicates
                 "cross_page_duplicate_rate": 0.05,      # 5% cross-page duplicates
+            },
+        ),
+        # ----------------------------------------------------------------
+        # Novel tasks — unique to ComtradeBench
+        # ----------------------------------------------------------------
+        Task(
+            task_id="T9_adaptive_adversary",
+            description=(
+                "Adaptive adversarial fault injection: the environment observes "
+                "the agent's success rate and dynamically escalates fault intensity. "
+                "Initial faults are mild (10% dup rate), but each successful page fetch "
+                "causes the environment to increase duplicate rate, inject additional "
+                "429 errors, and introduce totals rows. The agent must stay robust as "
+                "difficulty ramps up mid-episode. Tests generalization under distribution shift."
+            ),
+            query={"reporter": "276", "partner": "156", "flow": "X", "hs": "84", "year": 2020},
+            constraints={
+                "paging_mode": "page", "page_size": 15,
+                "max_requests": 100, "rate_limit_qps": 2, "total_rows": 75,
+            },
+            fault_injection={
+                "mode": "adaptive",
+                "initial_duplicate_rate": 0.05,
+                "escalation_per_page": 0.03,     # +3% dup rate per successful fetch
+                "adaptive_429_after_page": 3,     # start injecting 429s after page 3
+                "adaptive_totals_after_page": 4,  # start injecting totals rows after page 4
+            },
+        ),
+        Task(
+            task_id="T10_multi_agent_coop",
+            description=(
+                "Multi-agent cooperative data fetching: two independent agents "
+                "share a single request budget of 50 requests (half the normal 100). "
+                "Each agent can only see its own fetched pages. The agents must "
+                "implicitly coordinate to avoid fetching the same pages twice "
+                "(wasting budget) while ensuring all pages are covered. "
+                "Final submission merges both agents' data. "
+                "Tests emergent cooperation without explicit communication."
+            ),
+            query={"reporter": "392", "partner": "410", "flow": "M", "hs": "90", "year": 2021},
+            constraints={
+                "paging_mode": "page", "page_size": 10,
+                "max_requests": 50, "rate_limit_qps": 5, "total_rows": 80,
+                "multi_agent": True, "num_agents": 2,
+            },
+            fault_injection={
+                "mode": "duplicates",
+                "duplicate_rate": 0.05,
+                "cross_page_duplicate_rate": 0.02,
             },
         ),
     ]

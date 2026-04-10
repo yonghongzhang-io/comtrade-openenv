@@ -83,6 +83,8 @@ ALL_TASK_IDS = [
     "T6_page_drift",
     "T7_totals_trap",
     "T8_mixed_faults",
+    "T9_adaptive_adversary",
+    "T10_multi_agent_coop",
 ]
 
 
