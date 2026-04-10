@@ -243,6 +243,20 @@ We evaluated two LLM backends via the agentic loop described above: LLM decides 
 
 ![Benchmark Results](benchmark_results.png)
 
+### GRPO Rollout Training Curve (8 iterations, Moonshot V1-8K)
+
+We ran 8 iterations of GRPO-style rollouts with group_size=2, sampling 2 random tasks per iteration. Each rollout is a full agentic episode with real LLM tool-calling decisions.
+
+![Training Curve](training_curve.png)
+
+The left chart shows reward across iterations with min-max range and rolling average. The right chart shows per-task mean reward across all iterations where that task appeared. The orange dotted line marks the rule-based baseline (0.930).
+
+Key observations:
+- **Mean reward consistently above baseline** (0.930) in 6/8 iterations
+- **Iterations with fault tasks (T4/T5) pull the mean down** — these are genuinely harder and require the agent to handle 429/500 errors gracefully
+- **T8 mixed faults achieves 0.973** — demonstrating the LLM can handle combined rate-limit + dedup challenges
+- **Per-task variance is low** (small error bars) — the agent's behavior is consistent across rollouts
+
 Key findings:
 - **LLM agent outperforms rule-based baseline on 8/8 tasks** — the LLM generates better structured logs (Observability +2-3 pts) and makes smarter pagination decisions
 - **T1/T2/T3/T7 hit near-perfect 98.7** — the LLM correctly handles pagination, dedup, and totals filtering

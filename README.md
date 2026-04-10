@@ -174,6 +174,10 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 
 ![Benchmark Results](benchmark_results.png)
 
+### GRPO Training Curve (8 iterations, real LLM)
+
+![Training Curve](training_curve.png)
+
 ### LLM Agent (Moonshot V1-8K via Kimi API)
 
 | Task | Score | Reward | vs Baseline |
