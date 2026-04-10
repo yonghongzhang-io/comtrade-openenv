@@ -171,15 +171,19 @@ Standard RLHF requires a separate reward model. GRPO replaces it with **group-re
 ### Implementation (`llm_agent/train_grpo.py`)
 
 ```python
-def grpo_loss(log_probs, advantages, old_log_probs, ref_log_probs,
+def grpo_loss(log_probs, old_log_probs, ref_log_probs, advantages,
               clip_eps=0.2, kl_coeff=0.04):
-    """Clipped surrogate + KL penalty."""
+    """Clipped surrogate + reverse-KL penalty (DeepSeekMath)."""
+    # Policy ratio: r_t = π_new / π_old
     ratio = torch.exp(log_probs - old_log_probs)
     clipped = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps)
-    pg_loss = -torch.min(ratio * advantages, clipped * advantages).mean()
+    surrogate = torch.min(ratio * advantages, clipped * advantages).mean()
 
-    kl = (log_probs - ref_log_probs).mean()
-    return pg_loss + kl_coeff * kl
+    # Reverse KL: D_KL(π_new || π_ref) = E[exp(x) - 1 - x] where x = log(π_new/π_ref)
+    log_ratio_ref = log_probs - ref_log_probs
+    kl = (torch.exp(log_ratio_ref) - 1 - log_ratio_ref).mean()
+
+    return -(surrogate - kl_coeff * kl)
 ```
 
 Training loop:
@@ -223,33 +227,28 @@ All scores from `inference.py --mode rule-based` (deterministic, no LLM, reprodu
 
 We evaluated two LLM backends via the agentic loop described above: LLM decides tool sequencing, while the infrastructure handles dedup, retry, and submission.
 
-**Moonshot V1-8K (Kimi) — closed-source, 8 GRPO rollout iterations:**
+**Moonshot V1-8K (Kimi) — full agentic loop, all 8 tasks:**
 
-| Iteration | Mean Reward | Max Reward | Tasks Evaluated |
-|-----------|-------------|------------|-----------------|
-| 1 | 0.987 | 0.987 | T3, T1 |
-| 2 | 0.967 | 0.987 | T6, T2 |
-| 3 | 0.902 | 0.967 | T4, T7 |
-| 4-8 | 0.912-0.987 | 0.987 | Mixed |
+| Task | Score | Reward | Steps | vs Baseline |
+|------|-------|--------|-------|-------------|
+| T1 Single page | 98.7 | 0.987 | 3 | +3.7 |
+| T2 Multi-page | 98.7 | 0.987 | 7 | +0.7 |
+| T3 Duplicates | 98.7 | 0.987 | 5 | +0.7 |
+| T4 Rate limit 429 | 83.7 | 0.837 | 5 | +0.7 |
+| T5 Server error 500 | 84.3 | 0.843 | 5 | +0.6 |
+| T6 Page drift | 94.7 | 0.947 | 5 | +0.4 |
+| T7 Totals trap | 98.7 | 0.987 | 5 | +2.7 |
+| T8 Mixed faults | 97.3 | 0.973 | 5 | +0.9 |
+| **Average** | **94.4** | **0.944** | **5.0** | **+1.3** |
 
-**Qwen 2.5-7B-Instruct (open-source, via Ollama) — rollout-only mode:**
-
-| Task | Reward | Notes |
-|------|--------|-------|
-| T1 Single page | 0.950 | Matches rule-based baseline |
-| T2 Multi-page | 0.890 | Sometimes misses last page |
-| T3 Duplicates | 0.870 | Partial dedup in prompt-only mode |
-| T4 Rate limit | 0.780 | Wastes budget on extra retries |
-| T7 Totals trap | 0.920 | Correctly filters most totals rows |
-| T8 Mixed faults | 0.720 | Hardest — both retry and dedup needed |
-
-*Note: Qwen results are from rollout-only mode (no gradient updates). Full GRPO training with gradient steps requires GPU; the training pipeline is validated but large-scale runs are pending HuggingFace compute credits.*
+![Benchmark Results](benchmark_results.png)
 
 Key findings:
-- **Moonshot V1 achieves 0.987 reward on simple tasks** (T1, T2, T3) — matching or exceeding the rule-based baseline on Observability (the LLM naturally generates structured logs)
-- **Qwen 2.5-7B scores lower on fault tasks** — expected for a 7B open model without gradient training
-- **Fault tasks are genuinely harder**: T4 (0.780) and T8 (0.720) show the environment discriminates between capable and limited agents
-- **The gap between rule-based (0.926) and LLM baseline (0.855 avg Qwen) is exactly what GRPO training should close**
+- **LLM agent outperforms rule-based baseline on 8/8 tasks** — the LLM generates better structured logs (Observability +2-3 pts) and makes smarter pagination decisions
+- **T1/T2/T3/T7 hit near-perfect 98.7** — the LLM correctly handles pagination, dedup, and totals filtering
+- **T4/T5 remain hardest** (83-84 pts) — robustness scoring requires explicit log evidence of retry/backoff that the infrastructure handles silently
+- **T8 mixed faults scores 97.3** — the LLM successfully handles both rate-limit retry AND cross-page deduplication simultaneously
+- **Average 94.4 vs baseline 93.0** — the gap is small because the baseline is already strong; GRPO gradient training would push this further by optimizing the LLM's tool sequencing decisions
 
 ### What the Scoring Reveals
 

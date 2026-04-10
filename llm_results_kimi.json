@@ -1,0 +1,119 @@
+{
+  "results": [
+    {
+      "task_id": "T1_single_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 3
+    },
+    {
+      "task_id": "T2_multi_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 7
+    },
+    {
+      "task_id": "T3_duplicates",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T4_rate_limit_429",
+      "reward": 0.837,
+      "score": 83.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 0.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T5_server_error_500",
+      "reward": 0.843,
+      "score": 84.3,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 0.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 9.34
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T6_page_drift",
+      "reward": 0.947,
+      "score": 94.7,
+      "breakdown": {
+        "correctness": 26.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T7_totals_trap",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T8_mixed_faults",
+      "reward": 0.973,
+      "score": 97.3,
+      "breakdown": {
+        "correctness": 28.6,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    }
+  ],
+  "average_reward": 0.9435,
+  "model": "moonshot-v1-8k",
+  "agent": "ComtradeAgent"
+}
