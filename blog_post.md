@@ -1,17 +1,26 @@
-# Green Comtrade Bench: Teaching LLM Agents to Fetch Trade Data Reliably
+# ComtradeBench: An Adversarial Tool-Use Benchmark for Agentic RL
 
 **AgentBeats Phase 2 — OpenEnv Challenge Submission**  
-Author: MateFin | [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) | [HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env)
+Author: MateFin | [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) | [HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) | [Blog](https://huggingface.co/yonghongzhang/ComtradeBench-Blog)
 
 ---
 
 ## Motivation
 
-Real-world data pipelines are messy. They paginate. They rate-limit you. They return duplicates across page boundaries. They inject summary rows into data feeds. They reorder results non-deterministically between calls.
+The next frontier in LLM post-training is **agentic tool-use under adversarial conditions**. Today's agents can call APIs in clean sandboxes — but real-world APIs fight back. They paginate unpredictably. They rate-limit aggressively. They return duplicate data across page boundaries. They inject misleading summary rows. They reorder results non-deterministically between identical calls.
 
-Most LLM benchmarks evaluate reasoning in clean, single-turn settings. We asked: **can an LLM agent reliably fetch and clean real-world paginated API data under adversarial conditions?**
+These are not edge cases — they are the **default behavior** of production APIs at scale (AWS, Stripe, Bloomberg, UN Comtrade). Yet no existing RL benchmark systematically tests whether an LLM agent can handle them.
 
-To answer this, we built **Green Comtrade Bench** — an eight-task OpenEnv environment where an LLM agent must interact with a simulated UN Comtrade trade statistics API, handle faults gracefully, and submit clean deduplicated output.
+**ComtradeBench fills this gap.** We built a 10-task OpenEnv environment with **adaptive fault injection** — the first RL benchmark where the environment dynamically escalates difficulty based on the agent's own performance. This creates a fundamentally different training signal than static benchmarks: the agent cannot memorize a fixed policy, it must continuously adapt.
+
+We demonstrate this with a full GRPO training pipeline, real LLM evaluations (Moonshot V1-8K), and a Green Agent wrapper for community evaluation — all deployed live on HuggingFace Spaces.
+
+### Why This Matters for RL Research
+
+1. **Distribution shift within episodes**: T9 (Adaptive Adversary) changes fault intensity mid-episode. This is the first OpenEnv benchmark to test **non-stationary environment dynamics** — a critical open problem in RL.
+2. **Multi-dimensional reward**: 6 scoring dimensions force the agent to balance competing objectives (correctness vs efficiency vs observability), unlike binary success/fail benchmarks.
+3. **Reproducible and concurrent**: Seeded RNG + episode isolation enables deterministic, parallel GRPO training — directly compatible with TRL and torchforge.
+4. **Community-reusable**: Any researcher can deploy ComtradeBench and evaluate their own agent against our Green Agent via A2A protocol.
 
 ---
 
