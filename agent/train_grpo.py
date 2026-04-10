@@ -42,6 +42,7 @@ Requirements
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -221,6 +222,7 @@ def collect_rollouts(
     max_workers: int = 4,
     max_steps: int = 30,
     temperature: float = 0.7,
+    rollout_retries: int = 1,
 ) -> list[dict]:
     """
     For each task_id, run `group_size` episodes in parallel.
@@ -234,40 +236,50 @@ def collect_rollouts(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     def _run_one(task_id: str, g: int) -> dict:
-        seed = seed_offset + hash(task_id) % 10_000 + g
-        env = InProcessEnvClient()
-        worker_agent = ComtradeAgent(
-            llm=llm,
-            env_client=env,
-            max_steps=max_steps,
-            temperature=temperature,
-        )
-        try:
-            ep = worker_agent.run_episode(task_id=task_id, seed=seed)
-            prompt = ComtradeAgent._format_task_description(ep.task_info)
-            completion = ep.full_conversation()
-            return {
-                "task_id": task_id,
-                "prompt": prompt,
-                "completion": completion,
-                "reward": ep.reward,
-                "episode_idx": g,
-                "score": ep.score,
-                "breakdown": ep.breakdown,
-                "error": ep.error,
-            }
-        except Exception as exc:
-            logger.error(f"Rollout failed for {task_id} g={g}: {exc}")
-            return {
-                "task_id": task_id,
-                "prompt": "",
-                "completion": "",
-                "reward": 0.0,
-                "episode_idx": g,
-                "score": 0.0,
-                "breakdown": {},
-                "error": str(exc),
-            }
+        stable_seed = int(hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:8], 16)
+        seed = seed_offset + stable_seed + g
+        last_exc: Optional[Exception] = None
+
+        for attempt in range(rollout_retries + 1):
+            env = InProcessEnvClient()
+            worker_agent = ComtradeAgent(
+                llm=llm,
+                env_client=env,
+                max_steps=max_steps,
+                temperature=temperature,
+            )
+            try:
+                ep = worker_agent.run_episode(task_id=task_id, seed=seed + attempt)
+                prompt = ComtradeAgent._format_task_description(ep.task_info)
+                completion = ep.full_conversation()
+                return {
+                    "task_id": task_id,
+                    "prompt": prompt,
+                    "completion": completion,
+                    "reward": ep.reward,
+                    "episode_idx": g,
+                    "score": ep.score,
+                    "breakdown": ep.breakdown,
+                    "error": ep.error,
+                }
+            except Exception as exc:
+                last_exc = exc
+                logger.error(
+                    f"Rollout failed for {task_id} g={g} attempt={attempt+1}/{rollout_retries+1}: {exc}"
+                )
+                if attempt < rollout_retries:
+                    time.sleep(min(2**attempt, 2))
+
+        return {
+            "task_id": task_id,
+            "prompt": "",
+            "completion": "",
+            "reward": 0.0,
+            "episode_idx": g,
+            "score": 0.0,
+            "breakdown": {},
+            "error": str(last_exc) if last_exc else "Unknown rollout error",
+        }
 
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -303,9 +315,11 @@ def compute_advantages(rollouts: list[dict], group_size: int) -> list[float]:
 
     A_i = (r_i - mean_group) / (std_group + eps)
     """
-    # Group by task_id
+    # Group valid episodes by task_id
     groups: dict[str, list[float]] = defaultdict(list)
     for r in rollouts:
+        if r.get("error") or not r.get("completion"):
+            continue
         groups[r["task_id"]].append(r["reward"])
 
     group_stats: dict[str, tuple[float, float]] = {}
@@ -316,6 +330,10 @@ def compute_advantages(rollouts: list[dict], group_size: int) -> list[float]:
 
     advantages = []
     for r in rollouts:
+        # Invalid rollouts do not contribute to advantage updates.
+        if r.get("error") or not r.get("completion"):
+            advantages.append(0.0)
+            continue
         mean, std = group_stats[r["task_id"]]
         adv = (r["reward"] - mean) / (std + 1e-8)
         advantages.append(adv)
@@ -323,11 +341,44 @@ def compute_advantages(rollouts: list[dict], group_size: int) -> list[float]:
     return advantages
 
 
+def sample_task_batch(
+    all_task_ids: list[str],
+    batch_size: int,
+    iteration: int,
+    curriculum_warmup_iters: int,
+) -> list[str]:
+    """Sample a task batch with optional warm-up curriculum and no within-batch duplicates."""
+    if iteration < curriculum_warmup_iters:
+        # Warm-up on the original core tasks before introducing adaptive/budget stress.
+        pool = [t for t in all_task_ids if t not in {"T9_adaptive_adversary", "T10_multi_agent_coop"}]
+    else:
+        pool = list(all_task_ids)
+
+    if not pool:
+        pool = list(all_task_ids)
+
+    if batch_size <= len(pool):
+        return random.sample(pool, k=batch_size)
+
+    # For larger batches, cycle through shuffled rounds to avoid over-repeating one task.
+    batch: list[str] = []
+    while len(batch) < batch_size:
+        round_ids = list(pool)
+        random.shuffle(round_ids)
+        batch.extend(round_ids)
+    return batch[:batch_size]
+
+
 # ======================================================================
 # Training loop
 # ======================================================================
 
 def train(args: argparse.Namespace) -> None:
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
     # ------------------------------------------------------------------
     # 1. Setup LLM backend
     # ------------------------------------------------------------------
@@ -401,8 +452,13 @@ def train(args: argparse.Namespace) -> None:
     for iteration in range(args.num_iterations):
         t_start = time.time()
 
-        # Sample a batch of task IDs (with repetition allowed)
-        batch_task_ids = random.choices(all_task_ids, k=args.batch_size)
+        # Sample a batch of task IDs with curriculum + no within-batch duplicates.
+        batch_task_ids = sample_task_batch(
+            all_task_ids=all_task_ids,
+            batch_size=args.batch_size,
+            iteration=iteration,
+            curriculum_warmup_iters=args.curriculum_warmup_iters,
+        )
         logger.info(f"\n{'='*60}")
         logger.info(f"Iteration {iteration+1}/{args.num_iterations} | tasks={batch_task_ids}")
 
@@ -415,6 +471,7 @@ def train(args: argparse.Namespace) -> None:
             max_workers=args.max_workers,
             max_steps=args.max_steps,
             temperature=args.temperature,
+            rollout_retries=args.rollout_retries,
         )
 
         # Filter out failed rollouts
@@ -438,12 +495,15 @@ def train(args: argparse.Namespace) -> None:
         rewards = [r["reward"] for r in rollouts]
         mean_reward = sum(rewards) / len(rewards)
         max_reward = max(rewards)
+        reward_std = math.sqrt(sum((x - mean_reward) ** 2 for x in rewards) / max(len(rewards) - 1, 1))
 
         iter_metrics = {
             "iteration": iteration + 1,
             "mean_reward": mean_reward,
             "max_reward": max_reward,
+            "reward_std": reward_std,
             "n_valid": len(valid),
+            "n_invalid": len(rollouts) - len(valid),
             "n_total": len(rollouts),
             "elapsed_s": time.time() - t_start,
         }
@@ -467,6 +527,7 @@ def train(args: argparse.Namespace) -> None:
                 device=device,
                 clip_eps=args.clip_eps,
                 kl_coeff=args.kl_coeff,
+                max_grad_norm=args.max_grad_norm,
             )
             iter_metrics["loss"] = loss_val
             iter_metrics["kl"] = kl_val
@@ -513,6 +574,7 @@ def _gradient_step(
     device: str,
     clip_eps: float,
     kl_coeff: float,
+    max_grad_norm: float,
 ) -> tuple[float, float]:
     """Run one GRPO gradient step. Returns (loss, kl)."""
     model.train()
@@ -571,9 +633,9 @@ def _gradient_step(
             kl_coeff=kl_coeff,
         )
 
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
     optimizer.step()
 
     return stats["loss"], stats["kl"]
@@ -602,6 +664,12 @@ def parse_args() -> argparse.Namespace:
     # Rollout parallelism
     p.add_argument("--max-workers", type=int, default=4,
                    help="Parallel rollout workers (each gets its own in-process env, default: 4)")
+    p.add_argument("--rollout-retries", type=int, default=1,
+                   help="Retry failed rollouts up to N times (default: 1)")
+    p.add_argument("--curriculum-warmup-iters", type=int, default=0,
+                   help="If >0, warm up on T1-T8 before introducing T9/T10 (default: 0)")
+    p.add_argument("--seed", type=int, default=42,
+                   help="Global random seed for reproducible sampling (default: 42)")
 
     # GRPO hyperparameters
     p.add_argument("--num-iterations", type=int, default=200,
@@ -622,6 +690,8 @@ def parse_args() -> argparse.Namespace:
                    help="Max agentic steps per episode (default: 30)")
     p.add_argument("--temperature", type=float, default=0.7,
                    help="Sampling temperature for rollouts (default: 0.7)")
+    p.add_argument("--max-grad-norm", type=float, default=1.0,
+                   help="Gradient clipping max norm for HF training (default: 1.0)")
 
     # Output
     p.add_argument("--output-dir", type=str, default="./grpo_output",

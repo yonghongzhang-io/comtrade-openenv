@@ -302,7 +302,7 @@ _TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
         },
     },
     "T10_multi_agent_coop": {
-        "constraints": {"page_size": 10, "total_rows": 80, "multi_agent": True, "num_agents": 2},
+        "constraints": {"page_size": 10, "total_rows": 80},
         "fault_injection": {
             "mode": "duplicates",
             "duplicate_rate": 0.05,

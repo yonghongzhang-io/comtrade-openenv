@@ -1,7 +1,7 @@
 """
 inference.py — Evaluate a trained or API-based LLM agent on all comtrade_env tasks.
 
-Runs all 7 tasks (T1-T7), collects rewards and scores, prints a summary table,
+Runs all benchmark tasks (T1-T10), collects rewards and scores, prints a summary table,
 and writes results to a JSON file.
 
 Usage:
@@ -44,6 +44,9 @@ ALL_TASKS = [
     "T5_server_error_500",
     "T6_page_drift",
     "T7_totals_trap",
+    "T8_mixed_faults",
+    "T9_adaptive_adversary",
+    "T10_multi_agent_coop",
 ]
 
 

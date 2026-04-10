@@ -75,7 +75,7 @@ class ComtradeEnv(EnvClient[ComtradeAction, ComtradeObservation, State]):
     * ``fetch_page(page, page_size)`` — fetches one page of trade data
     * ``submit_results(data_jsonl, metadata_json, run_log)`` — submits for scoring
 
-    The ``reset()`` method selects a task (T1–T7) and returns an observation
+    The ``reset()`` method selects a task (T1–T10) and returns an observation
     with task metadata. The ``step()`` method is available for orchestration
     but is not the primary interaction path.
 

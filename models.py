@@ -58,7 +58,7 @@ class ComtradeObservation(Observation):
     On ``reset()``:
         All task-metadata fields (``task_id``, ``description``, ``query``,
         ``constraints``, ``instructions``) are populated using the selected
-        task (T1–T7).  ``reward`` is 0.0 and ``done`` is False.
+        task (T1–T10).  ``reward`` is 0.0 and ``done`` is False.
 
     On ``step()`` / MCP ``submit_results()`` response:
         ``reward`` is populated (0.0–1.0).  ``done`` is True.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import errno
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,9 @@ TASK_EFFICIENCY_BASELINES: Dict[str, int] = {
     "T5_server_error_500": 4,  # Server error with retries, ~4 requests
     "T6_page_drift": 3,        # Page drift, ~3 requests
     "T7_totals_trap": 8,       # Totals trap, more pages, ~8 requests
+    "T8_mixed_faults": 6,      # Mixed faults tends to need extra retries
+    "T9_adaptive_adversary": 8,  # Escalating faults often trigger retries
+    "T10_multi_agent_coop": 8,   # Constrained-budget single-agent stress task
 }
 
 # Observability: required traceable fields (must be present in log or metadata)
@@ -294,7 +298,7 @@ def score_output(output_dir: Path, task_expected: Dict[str, Any]) -> ScoreResult
     if mode == "rate_limit":
         # Check for 429 handling with gradient scoring
         has_429 = "429" in log_text
-        has_retry = "retry" in log_text or "backoff" in log_text
+        has_retry = "retry status" in log_text or "retrying" in log_text or "backoff" in log_text
         has_exponential = "exponential" in log_text or "backoff" in log_text
         
         if has_429 and has_retry:
@@ -308,7 +312,7 @@ def score_output(output_dir: Path, task_expected: Dict[str, Any]) -> ScoreResult
             
     elif mode == "server_error":
         has_500 = "500" in log_text
-        has_retry = "retry" in log_text
+        has_retry = "retry status" in log_text or "retrying" in log_text
         has_limit = "max" in log_text or "limit" in log_text
         
         if has_500 and has_retry:
@@ -339,7 +343,24 @@ def score_output(output_dir: Path, task_expected: Dict[str, Any]) -> ScoreResult
     # Parse execution metrics from metadata
     exec_time = meta.get("execution_time_seconds", 0)
     request_count = meta.get("request_count", 0)
-    retry_count = meta.get("request_stats", {}).get("retries_total", 0)
+    request_stats = meta.get("request_stats", {})
+    if not isinstance(request_stats, dict):
+        request_stats = {}
+    retry_count = request_stats.get("retries_total", 0)
+
+    # Fallback to run.log parsing when metadata fields are missing.
+    # This keeps scoring stable for older agents while rewarding richer metadata.
+    if not isinstance(request_count, int) or request_count <= 0:
+        request_matches = re.findall(r"request=(\d+)", log_text)
+        request_count = max((int(m) for m in request_matches), default=0)
+    if not isinstance(retry_count, int) or retry_count < 0:
+        retry_count = 0
+    if retry_count == 0:
+        retry_matches = re.findall(r"retry_count=(\d+)", log_text)
+        if retry_matches:
+            retry_count = max(int(m) for m in retry_matches)
+        else:
+            retry_count = len(re.findall(r"\bretry\b", log_text))
     
     # Get task-specific baseline for fair cross-task comparison
     task_id = meta.get("task_id", "")
@@ -347,6 +368,7 @@ def score_output(output_dir: Path, task_expected: Dict[str, Any]) -> ScoreResult
     
     details["efficiency_baseline_requests"] = baseline_requests
     details["request_count"] = request_count
+    details["retry_count"] = retry_count
     
     # Request efficiency (12 points) - relative to task-specific baseline
     if request_count > 0:

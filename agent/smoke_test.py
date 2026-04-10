@@ -16,7 +16,8 @@ Usage:
 
   # Run all tasks:
   for t in T1_single_page T2_multi_page T3_duplicates \
-            T4_rate_limit_429 T5_server_error_500 T6_page_drift T7_totals_trap; do
+            T4_rate_limit_429 T5_server_error_500 T6_page_drift T7_totals_trap \
+            T8_mixed_faults T9_adaptive_adversary T10_multi_agent_coop; do
       python agent/smoke_test.py --task $t
   done
 """
@@ -108,16 +109,32 @@ def run_rule_based_episode(task_id: str) -> dict:
 
     collected: dict[str, dict] = {}
     page = 1
+    request_count = 0
+    retry_total = 0
+    retry_429 = 0
+    retry_500 = 0
+    totals_dropped = 0
     run_log_lines = [f"task_id={task.task_id}"]
 
     while True:
         result = _fetch_page(task.task_id, task.query, page=page, page_size=500)
+        request_count += 1
+        run_log_lines.append(f"request={request_count} page={page}")
 
         # Retry on transient faults
         if result.get("retry") or result.get("status") in (429, 500):
-            logger.warning(f"HTTP {result.get('status')} on page {page}, retrying in 3s...")
+            status = result.get("status")
+            retry_total += 1
+            if status == 429:
+                retry_429 += 1
+            if status == 500:
+                retry_500 += 1
+            run_log_lines.append(f"retry status={status} attempt=1 wait_s=3")
+            logger.warning(f"HTTP {status} on page {page}, retrying in 3s...")
             time.sleep(3)
             result = _fetch_page(task.task_id, task.query, page=page, page_size=500)
+            request_count += 1
+            run_log_lines.append(f"request={request_count} page={page}")
 
         if "error" in result and not result.get("rows"):
             logger.error(f"Fetch error on page {page}: {result}")
@@ -129,6 +146,7 @@ def run_rule_based_episode(task_id: str) -> dict:
         for row in rows:
             # Drop totals trap rows — check both field names for compatibility
             if row.get("isTotal") or row.get("is_total"):
+                totals_dropped += 1
                 continue
             pk = "|".join(str(row.get(k, "")) for k in
                          ("year", "reporter", "partner", "flow", "hs", "record_id"))
@@ -144,7 +162,7 @@ def run_rule_based_episode(task_id: str) -> dict:
         page += 1
 
     logger.info(f"Collected {len(collected)} unique rows total.")
-    run_log_lines.append(f"request={page}")
+    run_log_lines.append(f"retry_count={retry_total}")
     run_log_lines.append("complete=true")
 
     # Build submission payload
@@ -156,7 +174,14 @@ def run_rule_based_episode(task_id: str) -> dict:
         "row_count": len(collected),
         "schema": list(first_row.keys()) if first_row else [],
         "dedup_key": ["year", "reporter", "partner", "flow", "hs", "record_id"],
-        "totals_handling": {"enabled": True, "rows_dropped": 0},
+        "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
+        "request_count": request_count,
+        "request_budget": task.constraints.get("max_requests", 100),
+        "request_stats": {
+            "retries_total": retry_total,
+            "retries_429": retry_429,
+            "retries_500": retry_500,
+        },
     }
     run_log = "\n".join(run_log_lines)
 
