@@ -1,5 +1,5 @@
 ---
-title: ComtradeBench — UN Trade Data Fetching Benchmark
+title: "ComtradeBench: An Adversarial Tool-Use Benchmark for Agentic RL"
 emoji: 📊
 colorFrom: indigo
 colorTo: gray
@@ -9,13 +9,16 @@ app_port: 8000
 base_path: /web
 tags:
   - openenv
+  - rl-environment
+  - adversarial
+  - tool-use
 ---
 
-# ComtradeBench — UN Trade Data Fetching Benchmark
+# ComtradeBench — An Adversarial Tool-Use Benchmark for Agentic RL
 
-An [OpenEnv](https://github.com/meta-pytorch/OpenEnv) MCP environment that benchmarks LLM agents on paginated data fetching against a simulated UN Comtrade API, plus a GRPO training pipeline for teaching LLMs to solve these tasks.
+An [OpenEnv](https://github.com/meta-pytorch/OpenEnv) environment that benchmarks LLM agents on **agentic tool-use under adversarial conditions** — adaptive fault injection, multi-dimensional scoring, and non-stationary environment dynamics. Built with a full GRPO training pipeline, Green Agent evaluator, and live HF Space demo.
 
-**AgentBeats Phase 2 — OpenEnv Challenge** submission by MateFin.
+**AgentBeats Phase 2 — OpenEnv Challenge** submission by MateFin | [Blog](https://huggingface.co/yonghongzhang/ComtradeBench-Blog) | [HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env)
 
 ## Project Structure
 
