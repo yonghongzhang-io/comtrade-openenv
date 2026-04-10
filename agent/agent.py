@@ -364,7 +364,7 @@ class ComtradeAgent:
                     "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
                     "dedup_key": dedup_key_fields,
                     "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
-                    "execution_time": round(time.time() - ep_start_time, 2),
+                    "execution_time_seconds": round(time.time() - ep_start_time, 2),
                 })
                 run_log = "\n".join(run_log_lines + ["complete=true"])
                 submit_result = self.env.submit_results(data_jsonl, metadata, run_log)
@@ -394,7 +394,7 @@ class ComtradeAgent:
                 "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
                 "dedup_key": dedup_key_fields,
                 "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
-                "execution_time": round(time.time() - ep_start_time, 2),
+                "execution_time_seconds": round(time.time() - ep_start_time, 2),
             }
             run_log = "\n".join(run_log_lines)
             try:
