@@ -14,7 +14,7 @@ tags:
 
 An [OpenEnv](https://github.com/meta-pytorch/OpenEnv) MCP environment that benchmarks LLM agents on paginated data fetching against a simulated UN Comtrade API, plus a GRPO training pipeline for teaching LLMs to solve these tasks.
 
-**AgentBeats Phase 2 — OpenEnv Challenge** submission by Yonghong Zhang.
+**AgentBeats Phase 2 — OpenEnv Challenge** submission by MateFin.
 
 ## Project Structure
 

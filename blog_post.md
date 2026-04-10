@@ -1,7 +1,7 @@
 # Green Comtrade Bench: Teaching LLM Agents to Fetch Trade Data Reliably
 
 **AgentBeats Phase 2 — OpenEnv Challenge Submission**  
-Author: Yonghong Zhang | [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) | [HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env)
+Author: MateFin | [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) | [HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env)
 
 ---
 
