@@ -39,6 +39,11 @@ comtrade_env/
 │   │   └── fixtures/            # Ground-truth data (seeded RNG)
 │   ├── Dockerfile               # Server container image
 │   └── requirements.txt
+├── green/                       # Green Agent (A2A evaluator for AgentBeats)
+│   ├── agent_a2a.py             # A2A server (JSON-RPC 2.0)
+│   ├── judge_green.py           # Scoring engine
+│   ├── tasks_green.py           # Task definitions
+│   └── Dockerfile               # Green agent container
 └── agent/                       # LLM training agent
     ├── agent.py                 # LLM-powered agentic loop
     ├── env_client.py            # InProcessEnvClient (no HTTP needed)

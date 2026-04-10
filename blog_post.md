@@ -285,6 +285,29 @@ The LLM agent improves on Observability (naturally verbose logs) but sometimes r
 
 ---
 
+## Green Agent Wrapper
+
+ComtradeBench includes a **Green Agent** — the evaluator component for the AgentBeats competition platform. The Green Agent implements the A2A (Agent-to-Agent) JSON-RPC 2.0 protocol and serves as the referee that Purple agents compete against.
+
+```
+green/
+├── agent_a2a.py       ← A2A server (receives eval requests, sends tasks, scores output)
+├── judge_green.py     ← 6-dimension scoring engine
+├── tasks_green.py     ← Task definitions with fault injection configs
+└── Dockerfile         ← Containerized for AgentBeats deployment
+```
+
+The Green Agent:
+1. Receives an evaluation request from AgentBeats
+2. Sends tasks (T1-T10) to the Purple agent via A2A protocol
+3. Collects the Purple agent's data output
+4. Scores it using the same 6-dimension judge used in training
+5. Reports results to the leaderboard
+
+This enables **any team's Purple agent** to be evaluated against ComtradeBench — making the environment a reusable benchmark for the broader community.
+
+---
+
 ## OpenEnv Integration
 
 The environment follows the OpenEnv contract exactly:
