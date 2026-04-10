@@ -179,13 +179,14 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="status-bar">
     <div class="status-item"><span class="dot green"></span> Environment Online</div>
     <div class="status-item"><span class="dot green"></span> Mock Service Active</div>
-    <div class="status-item">7 Tasks &middot; 3 MCP Tools &middot; 6 Scoring Dimensions</div>
+    <div class="status-item">8 Tasks &middot; 3 MCP Tools &middot; 6 Scoring Dimensions</div>
   </div>
 
   <!-- Action buttons -->
   <div class="btn-group">
     <a class="btn" href="/docs">API Documentation</a>
     <a class="btn btn-outline" href="https://github.com/yonghongzhang-io/comtrade-openenv" target="_blank">GitHub Repository</a>
+    <a class="btn btn-outline" href="https://huggingface.co/yonghongzhang/ComtradeBench-Blog" target="_blank">Blog Post</a>
     <a class="btn btn-outline" href="/health">Health Check</a>
   </div>
 
@@ -203,6 +204,7 @@ LANDING_HTML = """<!DOCTYPE html>
       <tr><td class="task-id">T5</td><td>Server Error (500)</td><td>Retry transient 500 failures</td><td><span class="difficulty medium">Medium</span></td></tr>
       <tr><td class="task-id">T6</td><td>Page Drift</td><td>Non-deterministic page order</td><td><span class="difficulty hard">Hard</span></td></tr>
       <tr><td class="task-id">T7</td><td>Totals Trap</td><td>Drop summary rows (<code>is_total=true</code>)</td><td><span class="difficulty hard">Hard</span></td></tr>
+      <tr><td class="task-id">T8</td><td>Mixed Faults</td><td>429 rate-limit AND cross-page duplicates simultaneously</td><td><span class="difficulty hard">Hard</span></td></tr>
     </tbody>
   </table>
 
@@ -314,11 +316,43 @@ LANDING_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Live Demo -->
+  <h2 style="font-size:1.2rem; margin:2.5rem 0 .5rem; font-weight:700;">Try It Live</h2>
+  <div class="card" style="margin-bottom:2rem;">
+    <h3><span class="card-icon">🚀</span> Interactive API Demo</h3>
+    <p style="font-size:.85rem; color:var(--muted); margin-bottom:1rem;">
+      Click the buttons below to interact with the live environment. Each call hits the real API running in this Space.
+    </p>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem;">
+      <button onclick="demoCall('/health','GET')" class="btn" style="cursor:pointer;border:none;font-size:.8rem;padding:.4rem .8rem;">Health Check</button>
+      <button onclick="demoCall('/reset','POST',{task_id:'T1_single_page'})" class="btn" style="cursor:pointer;border:none;font-size:.8rem;padding:.4rem .8rem;">Reset T1</button>
+      <button onclick="demoCall('/state','GET')" class="btn btn-outline" style="cursor:pointer;font-size:.8rem;padding:.4rem .8rem;">Get State</button>
+      <button onclick="demoCall('/schema','GET')" class="btn btn-outline" style="cursor:pointer;font-size:.8rem;padding:.4rem .8rem;">View Schema</button>
+    </div>
+    <pre id="demo-output" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:.78rem;max-height:300px;overflow:auto;color:var(--green);font-family:'JetBrains Mono','Fira Code',monospace;">Click a button above to see the API response...</pre>
+  </div>
+  <script>
+  async function demoCall(path, method, body) {
+    const out = document.getElementById('demo-output');
+    out.textContent = `${method} ${path} ...`;
+    try {
+      const opts = {method, headers:{'Content-Type':'application/json'}};
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(path, opts);
+      const data = await r.json();
+      out.textContent = `${method} ${path}  →  ${r.status}\\n\\n` + JSON.stringify(data, null, 2);
+    } catch(e) {
+      out.textContent = `Error: ${e.message}`;
+    }
+  }
+  </script>
+
   <!-- Footer -->
   <div class="footer">
     <p>ComtradeBench &middot; AgentBeats Phase 2 &middot; OpenEnv Challenge</p>
     <p style="margin-top:.4rem;">
       <a href="https://github.com/yonghongzhang-io/comtrade-openenv">GitHub</a> &middot;
+      <a href="https://huggingface.co/yonghongzhang/ComtradeBench-Blog">Blog</a> &middot;
       <a href="/docs">API Docs</a> &middot;
       <a href="https://github.com/meta-pytorch/OpenEnv">OpenEnv Framework</a>
     </p>

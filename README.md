@@ -157,17 +157,29 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 
 ## Results
 
-| Task | Score | Status |
-|------|-------|--------|
-| T1 Single page | 95.0 | verified |
-| T2 Multi-page | 90.0 | verified |
-| T3 Duplicates | 92.0 | verified |
-| T4 Rate limit | 91.5 | est. |
-| T5 Server error | 90.0 | est. |
-| T6 Page drift | 90.0 | est. |
-| T7 Totals trap | 99.5 | verified |
+### Rule-Based Baseline (no LLM)
 
-Rule-based baseline average: **92.6 / 100**.
+| Task | Score | Reward |
+|------|-------|--------|
+| T1 Single page | 95.0 | 0.950 |
+| T2 Multi-page | 98.0 | 0.980 |
+| T3 Duplicates | 98.0 | 0.980 |
+| T4 Rate limit | 83.0 | 0.830 |
+| T5 Server error | 83.7 | 0.837 |
+| T6 Page drift | 94.3 | 0.943 |
+| T7 Totals trap | 96.0 | 0.960 |
+| T8 Mixed faults | 81.0 | 0.810 |
+| **Average** | **91.1** | **0.911** |
+
+### LLM Agent (Qwen 2.5-7B, rollout-only)
+
+| Task | Reward | Notes |
+|------|--------|-------|
+| T1 | 0.950 | Matches baseline |
+| T2 | 0.890 | Sometimes misses last page |
+| T4 | 0.780 | Extra retries waste budget |
+| T7 | 0.920 | Filters most totals rows |
+| T8 | 0.720 | Hardest — both retry + dedup |
 
 ## License
 

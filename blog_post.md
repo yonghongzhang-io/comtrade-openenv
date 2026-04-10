@@ -47,19 +47,20 @@ submit_results(data_jsonl, metadata_json, run_log)
 
 This minimal interface mirrors how real API agents are constrained: the agent cannot inspect internal state, cannot bypass pagination, and cannot retry with a fresh session.
 
-### Seven Tasks — Progressive Difficulty
+### Eight Tasks — Progressive Difficulty
 
-| Task | Fault Injected | Key Challenge |
-|------|---------------|---------------|
-| T1 | None | Schema validation, baseline correctness |
-| T2 | Pagination only | Multi-page merge (2,345 rows across 5+ pages) |
-| T3 | 8% within-page + 3% cross-page duplicates | Primary-key deduplication |
-| T4 | HTTP 429 on page 2 | Backoff + retry without data loss |
-| T5 | HTTP 500 on page 2 | Transient error handling |
-| T6 | Non-deterministic page ordering | Canonicalization + dedup under drift |
-| T7 | `is_total=true` summary rows mixed in | Totals-trap filtering |
+| Task | Fault Injected | Key Challenge | Difficulty |
+|------|---------------|---------------|------------|
+| T1 | None | Schema validation, baseline correctness | Easy |
+| T2 | Pagination only | Multi-page merge (2,345 rows across 5+ pages) | Easy |
+| T3 | 8% within-page + 3% cross-page duplicates | Primary-key deduplication | Medium |
+| T4 | HTTP 429 on page 2 | Backoff + retry without data loss | Medium |
+| T5 | HTTP 500 on page 2 | Transient error handling | Medium |
+| T6 | Non-deterministic page ordering | Canonicalization + dedup under drift | Hard |
+| T7 | `is_total=true` summary rows mixed in | Totals-trap filtering | Hard |
+| T8 | 429 rate-limit + cross-page duplicates | Both retry AND dedup simultaneously | Hard |
 
-Tasks are drawn from real UN Comtrade API behaviors: the pagination drift, duplicate records, and totals rows are documented failure modes that production ETL pipelines routinely encounter.
+Tasks are drawn from real UN Comtrade API behaviors: the pagination drift, duplicate records, and totals rows are documented failure modes that production ETL pipelines routinely encounter. T8 is the hardest task — it combines two independent failure modes that must both be handled correctly.
 
 ### Mock Service Architecture
 
@@ -282,42 +283,38 @@ The mock service starts as an embedded subprocess on `reset()` and is torn down 
 ## Running the Environment
 
 ```bash
-# Clone both repos side-by-side
-git clone https://github.com/meta-pytorch/OpenEnv
+# Clone the repo (environment + agent are in one repo)
 git clone https://github.com/yonghongzhang-io/comtrade-openenv
+cd comtrade-openenv
 
-# Install OpenEnv dependencies
-cd OpenEnv && uv sync && cd ..
+# Install OpenEnv framework
+pip install openenv-core[core]
 
 # Rule-based smoke test — no LLM, no external server needed
-# (auto-discovers OpenEnv, spins up mock service in-process)
-cd comtrade-openenv/llm_agent
-python smoke_test.py --task T1_single_page
-python smoke_test.py --task T2_multi_page
-python smoke_test.py --task T7_totals_trap
+# (InProcessEnvClient auto-starts mock service in-process)
+python agent/smoke_test.py --task T1_single_page
+python agent/smoke_test.py --task T7_totals_trap
+python agent/smoke_test.py --task T8_mixed_faults
 
-# In-process integration test (same approach, more verbose output)
-python direct_test.py --task T3_duplicates
+# Run unit + integration tests
+pip install pytest
+python -m pytest agent/tests/ -v
 
-# Start the OpenEnv HTTP server (needed for LLM agent / GRPO training)
-cd ../..
-cd OpenEnv && uvicorn envs.comtrade_env.server.app:app --port 8000 &
-
-# Train with GRPO via local Ollama/vLLM (rollout-only mode, no GPU required)
-cd ../comtrade-openenv/llm_agent
-python train_grpo.py \
-    --env-url http://localhost:8000 \
+# Train with GRPO via local Ollama/vLLM (rollout-only, no GPU required)
+python agent/train_grpo.py \
     --api-url http://localhost:11434/v1 \
     --api-model qwen2.5:7b \
-    --num-iterations 200
+    --num-iterations 200 \
+    --max-workers 4
 
 # Train with gradient updates (requires GPU + HuggingFace model)
-python train_grpo.py \
-    --env-url http://localhost:8000 \
+python agent/train_grpo.py \
     --hf-model Qwen/Qwen2.5-7B-Instruct \
     --num-iterations 200 \
     --output-dir ./checkpoints
 ```
+
+No external OpenEnv server is needed — `InProcessEnvClient` wraps the environment directly, with parallel rollout support via `ThreadPoolExecutor`.
 
 ---
 
