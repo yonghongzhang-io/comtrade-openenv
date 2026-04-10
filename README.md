@@ -166,17 +166,17 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 
 | Task | Score | Reward |
 |------|-------|--------|
-| T1 Single page | 95.0 | 0.950 |
+| T1 Single page | 98.0 | 0.980 |
 | T2 Multi-page | 98.0 | 0.980 |
 | T3 Duplicates | 98.0 | 0.980 |
-| T4 Rate limit | 83.0 | 0.830 |
-| T5 Server error | 83.7 | 0.837 |
-| T6 Page drift | 94.3 | 0.943 |
-| T7 Totals trap | 96.0 | 0.960 |
-| T8 Mixed faults | 81.0 | 0.810 |
+| T4 Rate limit | 95.0 | 0.950 |
+| T5 Server error | 95.7 | 0.957 |
+| T6 Page drift | 94.0 | 0.940 |
+| T7 Totals trap | 98.0 | 0.980 |
+| T8 Mixed faults | 96.4 | 0.964 |
 | T9 Adaptive adversary | 96.9 | 0.969 |
 | T10 Constrained budget | 98.0 | 0.980 |
-| **Average** | **91.3** | **0.913** |
+| **Average** | **96.8** | **0.968** |
 
 ![Benchmark Results](benchmark_results.png)
 

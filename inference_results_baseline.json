@@ -2,135 +2,56 @@
   "results": [
     {
       "task_id": "T1_single_page",
-      "reward": 0.95,
-      "score": 95.0,
-      "breakdown": {
-        "correctness": 30.0,
-        "completeness": 15.0,
-        "robustness": 12.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [],
-      "agent": "rule-based-baseline"
+      "reward": 0.98,
+      "score": 98.0
     },
     {
       "task_id": "T2_multi_page",
       "reward": 0.98,
-      "score": 98.0,
-      "breakdown": {
-        "correctness": 30.0,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [],
-      "agent": "rule-based-baseline"
+      "score": 98.0
     },
     {
       "task_id": "T3_duplicates",
       "reward": 0.98,
-      "score": 98.0,
-      "breakdown": {
-        "correctness": 30.0,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [],
-      "agent": "rule-based-baseline"
+      "score": 98.0
     },
     {
       "task_id": "T4_rate_limit_429",
-      "reward": 0.83,
-      "score": 83.0,
-      "breakdown": {
-        "correctness": 30.0,
-        "completeness": 15.0,
-        "robustness": 0.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [
-        "No evidence of 429 handling in run.log"
-      ],
-      "agent": "rule-based-baseline"
+      "reward": 0.95,
+      "score": 95.0
     },
     {
       "task_id": "T5_server_error_500",
-      "reward": 0.837,
-      "score": 83.7,
-      "breakdown": {
-        "correctness": 30.0,
-        "completeness": 15.0,
-        "robustness": 0.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.67
-      },
-      "errors": [
-        "No evidence of 500 handling in run.log"
-      ],
-      "agent": "rule-based-baseline"
+      "reward": 0.957,
+      "score": 95.7
     },
     {
       "task_id": "T6_page_drift",
-      "reward": 0.943,
-      "score": 94.3,
-      "breakdown": {
-        "correctness": 26.333333333333332,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [
-        "Row count: got 25, expected 36 (accuracy: 69.4%)"
-      ],
-      "agent": "rule-based-baseline"
+      "reward": 0.94,
+      "score": 94.0
     },
     {
       "task_id": "T7_totals_trap",
-      "reward": 0.96,
-      "score": 96.0,
-      "breakdown": {
-        "correctness": 28.0,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [
-        "T7_totals_trap: no rows dropped"
-      ],
-      "agent": "rule-based-baseline"
+      "reward": 0.98,
+      "score": 98.0
     },
     {
       "task_id": "T8_mixed_faults",
       "reward": 0.964,
-      "score": 96.4,
-      "breakdown": {
-        "correctness": 28.4,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.0
-      },
-      "errors": [
-        "Row count: got 52, expected 60 (accuracy: 86.7%)"
-      ],
-      "agent": "rule-based-baseline"
+      "score": 96.4
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.969,
+      "score": 96.9
+    },
+    {
+      "task_id": "T10_multi_agent_coop",
+      "reward": 0.98,
+      "score": 98.0
     }
   ],
-  "average_score": 93.0,
-  "agent": "rule-based-baseline"
+  "average_score": 96.8,
+  "agent": "rule-based-baseline",
+  "tasks": 10
 }
