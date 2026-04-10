@@ -6,6 +6,7 @@ colorTo: gray
 sdk: docker
 pinned: false
 app_port: 8000
+base_path: /web
 tags:
   - openenv
 ---
@@ -171,15 +172,21 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 | T8 Mixed faults | 81.0 | 0.810 |
 | **Average** | **91.1** | **0.911** |
 
-### LLM Agent (Qwen 2.5-7B, rollout-only)
+![Benchmark Results](benchmark_results.png)
 
-| Task | Reward | Notes |
-|------|--------|-------|
-| T1 | 0.950 | Matches baseline |
-| T2 | 0.890 | Sometimes misses last page |
-| T4 | 0.780 | Extra retries waste budget |
-| T7 | 0.920 | Filters most totals rows |
-| T8 | 0.720 | Hardest — both retry + dedup |
+### LLM Agent (Moonshot V1-8K via Kimi API)
+
+| Task | Score | Reward | vs Baseline |
+|------|-------|--------|-------------|
+| T1 Single page | 98.7 | 0.987 | +3.7 |
+| T2 Multi-page | 98.7 | 0.987 | +0.7 |
+| T3 Duplicates | 98.7 | 0.987 | +0.7 |
+| T4 Rate limit | 83.7 | 0.837 | +0.7 |
+| T5 Server error | 84.3 | 0.843 | +0.6 |
+| T6 Page drift | 94.7 | 0.947 | +0.4 |
+| T7 Totals trap | 98.7 | 0.987 | +2.7 |
+| T8 Mixed faults | 97.3 | 0.973 | +0.9 |
+| **Average** | **94.4** | **0.944** | **+1.3** |
 
 ## License
 

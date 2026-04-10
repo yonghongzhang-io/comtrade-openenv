@@ -368,6 +368,11 @@ async def landing_page():
     return LANDING_HTML
 
 
+@app.get("/web", response_class=HTMLResponse, include_in_schema=False)
+async def landing_page_web():
+    return LANDING_HTML
+
+
 def main(host: str = "0.0.0.0", port: int = 8000):
     """
     Entry point for direct execution via uv run or python -m.
