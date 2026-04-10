@@ -252,11 +252,36 @@ class ComtradeAgent:
 
         collected_rows: dict[str, dict] = {}  # deduplicated by primary key
         totals_dropped: int = 0  # count of is_total rows filtered
+        request_count: int = 0
+        retry_total: int = 0
+        retry_429: int = 0
+        retry_500: int = 0
+        tool_calls_total: int = 0
+        request_budget = task_meta.get("constraints", {}).get("max_requests", 100)
         dedup_key_fields = task_meta.get("dedup_key",
                            ["year", "reporter", "partner", "flow", "hs", "record_id"])
         ep_start_time = time.time()
         run_log_lines: list[str] = []
         run_log_lines.append(f"task_id={task_meta.get('task_id', 'unknown')}")
+
+        def _build_submission_metadata() -> dict:
+            return {
+                "task_id": task_meta.get("task_id"),
+                "query": task_meta.get("query", {}),
+                "row_count": len(collected_rows),
+                "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
+                "dedup_key": dedup_key_fields,
+                "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
+                "request_count": request_count,
+                "request_budget": request_budget,
+                "request_stats": {
+                    "retries_total": retry_total,
+                    "retries_429": retry_429,
+                    "retries_500": retry_500,
+                    "tool_calls_total": tool_calls_total,
+                },
+                "execution_time_seconds": round(time.time() - ep_start_time, 2),
+            }
 
         for step_idx in range(self.max_steps):
             # ---- LLM generates next tool call ----
@@ -287,28 +312,54 @@ class ComtradeAgent:
 
             tool_name, tool_args = parsed
             logger.info(f"Step {step_idx+1}: {tool_name}({tool_args})")
-            run_log_lines.append(f"request={step_idx+1} tool={tool_name}")
+            tool_calls_total += 1
+            run_log_lines.append(f"step={step_idx+1} tool={tool_name}")
 
             # ---- Execute tool ----
-            retry_count = 0
             tool_result: dict = {}
-            while retry_count <= self.retry_limit:
+            if tool_name == "fetch_page":
+                page_arg = int(tool_args.get("page", step_idx + 1))
+                attempt = 0
+                while True:
+                    attempt += 1
+                    request_count += 1
+                    run_log_lines.append(f"request={request_count} page={page_arg} attempt={attempt}")
+                    try:
+                        tool_result = self.env.call_tool(tool_name, tool_args)
+                    except Exception as exc:
+                        if attempt > self.retry_limit:
+                            tool_result = {"error": str(exc)}
+                            break
+                        retry_total += 1
+                        wait_s = min(2**attempt, 8)
+                        run_log_lines.append(
+                            f"retry status=exception attempt={attempt} wait_s={wait_s}"
+                        )
+                        logger.warning(f"fetch_page exception, retrying in {wait_s}s: {exc}")
+                        time.sleep(wait_s)
+                        continue
+
+                    status = tool_result.get("status")
+                    should_retry = status in (429, 500) or tool_result.get("retry")
+                    if should_retry and attempt <= self.retry_limit:
+                        retry_total += 1
+                        if status == 429:
+                            retry_429 += 1
+                        if status == 500:
+                            retry_500 += 1
+                        wait_s = min(2**attempt, 8)
+                        run_log_lines.append(
+                            f"retry status={status} attempt={attempt} wait_s={wait_s}"
+                        )
+                        logger.info(f"HTTP {status}, retrying page {page_arg} in {wait_s}s")
+                        time.sleep(wait_s)
+                        continue
+                    break
+            else:
                 try:
                     tool_result = self.env.call_tool(tool_name, tool_args)
-                    break
                 except Exception as exc:
-                    retry_count += 1
-                    logger.warning(f"Tool call failed ({retry_count}/{self.retry_limit}): {exc}")
-                    time.sleep(1)
-                    if retry_count > self.retry_limit:
-                        tool_result = {"error": str(exc)}
-
-            # Handle rate-limit / server-error retry at the tool level
-            if tool_result.get("status") in (429, 500) or tool_result.get("retry"):
-                wait = 2 * (retry_count + 1)
-                logger.info(f"HTTP {tool_result.get('status')}, retrying in {wait}s")
-                time.sleep(wait)
-                tool_result = self.env.call_tool(tool_name, tool_args)
+                    tool_result = {"error": str(exc)}
 
             # ---- Collect rows if this was fetch_page ----
             if tool_name == "fetch_page" and "rows" in tool_result:
@@ -347,6 +398,7 @@ class ComtradeAgent:
                 episode.reward = reward
                 episode.score = tool_result.get("score", 0.0)
                 episode.breakdown = tool_result.get("breakdown", {})
+                run_log_lines.append(f"retry_count={retry_total}")
                 run_log_lines.append(f"complete=true reward={reward:.4f}")
                 logger.info(f"Episode done. reward={reward:.4f} score={episode.score:.1f}")
                 return episode
@@ -357,16 +409,8 @@ class ComtradeAgent:
                 # large JSONL payloads within its token limit, so we handle it)
                 logger.info(f"All pages fetched. Auto-submitting {len(collected_rows)} rows.")
                 data_jsonl = "\n".join(json.dumps(r, ensure_ascii=False) for r in collected_rows.values())
-                metadata = json.dumps({
-                    "task_id": task_meta.get("task_id"),
-                    "query": task_meta.get("query", {}),
-                    "row_count": len(collected_rows),
-                    "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
-                    "dedup_key": dedup_key_fields,
-                    "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
-                    "execution_time_seconds": round(time.time() - ep_start_time, 2),
-                })
-                run_log = "\n".join(run_log_lines + ["complete=true"])
+                metadata = json.dumps(_build_submission_metadata())
+                run_log = "\n".join(run_log_lines + [f"retry_count={retry_total}", "complete=true"])
                 submit_result = self.env.submit_results(data_jsonl, metadata, run_log)
                 submit_step = AgentStep(
                     model_text="[auto-submit after all pages fetched]",
@@ -384,18 +428,11 @@ class ComtradeAgent:
 
         # Max steps reached without submission — submit whatever we have
         logger.warning("Max steps reached. Force-submitting collected rows.")
+        run_log_lines.append(f"retry_count={retry_total}")
         run_log_lines.append("complete=false")
         if collected_rows:
             data_jsonl = "\n".join(json.dumps(r, ensure_ascii=False) for r in collected_rows.values())
-            metadata = {
-                "task_id": task_meta.get("task_id"),
-                "query": task_meta.get("query", {}),
-                "row_count": len(collected_rows),
-                "schema": list(next(iter(collected_rows.values())).keys()) if collected_rows else [],
-                "dedup_key": dedup_key_fields,
-                "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
-                "execution_time_seconds": round(time.time() - ep_start_time, 2),
-            }
+            metadata = _build_submission_metadata()
             run_log = "\n".join(run_log_lines)
             try:
                 result = self.env.submit_results(data_jsonl, json.dumps(metadata), run_log)

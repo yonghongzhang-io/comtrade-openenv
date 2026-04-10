@@ -32,7 +32,7 @@ comtrade_env/
 ├── server/                      # Environment + mock service
 │   ├── app.py                   # FastAPI app (HTTP + WebSocket)
 │   ├── comtrade_env_environment.py  # Core MCP environment logic
-│   ├── tasks.py                 # Task definitions (T1–T7)
+│   ├── tasks.py                 # Task definitions (T1–T10)
 │   ├── judge.py                 # Scoring engine (6 dimensions)
 │   ├── mock_service/            # Embedded mock Comtrade API
 │   │   ├── app.py               # FastAPI mock with fault injection
@@ -51,7 +51,7 @@ comtrade_env/
         └── test_comtrade.py     # Unit + integration tests
 ```
 
-## Tasks (T1–T7)
+## Tasks (T1–T10)
 
 | ID | Name | Challenge |
 |----|------|-----------|
@@ -64,7 +64,7 @@ comtrade_env/
 | T7 | Totals trap | Summary rows mixed in; drop `is_total=true` rows. |
 | T8 | Mixed faults | 429 rate-limit + cross-page duplicates simultaneously. |
 | **T9** | **Adaptive adversary** | **Faults escalate mid-episode based on agent progress.** |
-| **T10** | **Multi-agent coop** | **Two agents share halved budget; implicit coordination.** |
+| **T10** | **Constrained budget** | **Single agent runs under halved request budget.** |
 
 ## MCP Tools
 
@@ -100,7 +100,8 @@ python agent/smoke_test.py --task T1_single_page
 
 # Run all tasks
 for t in T1_single_page T2_multi_page T3_duplicates \
-         T4_rate_limit_429 T5_server_error_500 T6_page_drift T7_totals_trap; do
+         T4_rate_limit_429 T5_server_error_500 T6_page_drift T7_totals_trap \
+         T8_mixed_faults T9_adaptive_adversary T10_multi_agent_coop; do
     python agent/smoke_test.py --task $t
 done
 ```
@@ -174,7 +175,7 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 | T7 Totals trap | 96.0 | 0.960 |
 | T8 Mixed faults | 81.0 | 0.810 |
 | T9 Adaptive adversary | 96.9 | 0.969 |
-| T10 Multi-agent coop | 98.0 | 0.980 |
+| T10 Constrained budget | 98.0 | 0.980 |
 | **Average** | **91.3** | **0.913** |
 
 ![Benchmark Results](benchmark_results.png)

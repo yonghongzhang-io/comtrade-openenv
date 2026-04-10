@@ -5,7 +5,7 @@ The agent must fetch paginated trade data from a mock HTTP service,
 handle faults (rate limits, server errors, duplicates, page drift),
 and produce clean, deduplicated output.
 
-Tasks (T1-T7):
+Tasks (T1-T10):
   T1 - Single page fetch
   T2 - Multi-page pagination
   T3 - Deduplication across pages
@@ -13,6 +13,9 @@ Tasks (T1-T7):
   T5 - Retry on HTTP 500
   T6 - Page drift (non-deterministic ordering)
   T7 - Totals trap (drop summary rows)
+  T8 - Mixed faults
+  T9 - Adaptive adversary
+  T10 - Constrained-budget stress task
 
 Reward: normalized judge score (0.0 - 1.0), max raw score = 100.
 """
@@ -91,6 +94,7 @@ class ComtradeEnvironment(MCPEnvironment):
         self._current_task = None
         self._mock_proc = None
         self._request_count = 0
+        self._request_budget = MAX_REQUESTS_PER_EPISODE
         self._submitted = False
         self._output_dir = None
         self._tasks_mod = _load_tasks()
@@ -116,7 +120,7 @@ class ComtradeEnvironment(MCPEnvironment):
                 "constraints": t.constraints,
                 "mock_service_url": f"http://localhost:{MOCK_SERVICE_PORT}/api/data",
                 "requests_used": self._request_count,
-                "requests_remaining": MAX_REQUESTS_PER_EPISODE - self._request_count,
+                "requests_remaining": max(self._request_budget - self._request_count, 0),
             }
 
         @mcp.tool
@@ -137,7 +141,7 @@ class ComtradeEnvironment(MCPEnvironment):
             with self._lock:
                 if self._current_task is None:
                     return {"error": "No active episode. Call reset() first."}
-                if self._request_count >= MAX_REQUESTS_PER_EPISODE:
+                if self._request_count >= self._request_budget:
                     return {"error": "Request limit exceeded for this episode."}
                 self._request_count += 1
                 self._state.step_count += 1
@@ -194,7 +198,21 @@ class ComtradeEnvironment(MCPEnvironment):
                 out_dir = Path(out_base) / task.task_id
                 out_dir.mkdir(parents=True, exist_ok=True)
                 (out_dir / "data.jsonl").write_text(data_jsonl)
-                (out_dir / "metadata.json").write_text(metadata_json)
+                try:
+                    metadata = json.loads(metadata_json)
+                except Exception:
+                    metadata = {}
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                metadata.setdefault("request_count", self._request_count)
+                metadata.setdefault("request_budget", self._request_budget)
+                request_stats = metadata.setdefault("request_stats", {})
+                if not isinstance(request_stats, dict):
+                    request_stats = {}
+                    metadata["request_stats"] = request_stats
+                request_stats.setdefault("requests_used", self._request_count)
+                request_stats.setdefault("request_budget", self._request_budget)
+                (out_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False))
                 log_content = run_log or (
                     f"task_id={task.task_id}\npage=1\nrequest=1\ncomplete=true\n"
                 )
@@ -271,7 +289,7 @@ class ComtradeEnvironment(MCPEnvironment):
         Args:
             seed: Optional random seed for task selection.
             episode_id: Optional episode ID.
-            task_id: Pin to a specific task ID (T1-T7). Random if not set.
+            task_id: Pin to a specific task ID (T1-T10). Random if not set.
 
         Returns:
             Observation with task metadata and instructions.
@@ -290,6 +308,12 @@ class ComtradeEnvironment(MCPEnvironment):
             else:
                 tasks = self._tasks_mod.get_tasks()
                 self._current_task = random.choice(tasks)
+            if self._current_task is not None:
+                self._request_budget = int(
+                    self._current_task.constraints.get("max_requests", MAX_REQUESTS_PER_EPISODE)
+                )
+            else:
+                self._request_budget = MAX_REQUESTS_PER_EPISODE
 
         t = self._current_task
         return Observation(

@@ -109,6 +109,20 @@ class TestComputeAdvantages:
         assert abs(abs(advs[2]) - abs(advs[3])) < 1e-6
 
 
+class TestTaskCoverage:
+    def test_inference_covers_all_tasks(self):
+        from inference import ALL_TASKS
+        assert "T8_mixed_faults" in ALL_TASKS
+        assert "T9_adaptive_adversary" in ALL_TASKS
+        assert "T10_multi_agent_coop" in ALL_TASKS
+
+    def test_training_covers_all_tasks(self):
+        from train_grpo import ALL_TASK_IDS
+        assert "T8_mixed_faults" in ALL_TASK_IDS
+        assert "T9_adaptive_adversary" in ALL_TASK_IDS
+        assert "T10_multi_agent_coop" in ALL_TASK_IDS
+
+
 class TestGrpoLoss:
     """Verify GRPO loss math without a real model."""
 
@@ -172,7 +186,7 @@ class TestInProcessEnvClient:
         info = env_client.get_task_info()
         assert info.get("task_id") == "T1_single_page"
         assert "mock_service_url" in info
-        assert info.get("requests_remaining") == 100
+        assert info.get("requests_remaining") == info.get("constraints", {}).get("max_requests")
 
     def test_fetch_page_returns_rows(self, env_client):
         env_client.reset(task_id="T1_single_page")

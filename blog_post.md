@@ -68,9 +68,9 @@ ComtradeBench goes beyond static fault injection with two novel task types that 
 
 **T9: Adaptive Adversary** — The environment observes the agent's progress and *dynamically escalates* fault intensity mid-episode. Initial pages have 5% duplicate rate; each successful fetch increases it by 3%. After page 3, the environment starts injecting HTTP 429 errors. After page 4, totals rows appear. This creates a **distribution shift within a single episode** — the agent must continuously adapt its strategy rather than relying on a fixed policy. This models real-world API degradation where services throttle heavy consumers progressively.
 
-**T10: Multi-Agent Cooperative** — Two independent agents share a halved request budget (50 instead of 100). Each agent can only see its own fetched pages. They must *implicitly coordinate* to avoid duplicating work (wasting budget) while ensuring complete page coverage. This tests **emergent cooperation without explicit communication** — a key challenge in multi-agent RL that has applications in distributed data pipelines, web crawling, and federated learning.
+**T10: Constrained Budget Stress** — A single agent runs under a halved request budget (50 instead of 100). It must avoid redundant fetches while still achieving complete page coverage and clean deduplication. This keeps the benchmark stable for the current single-agent training stack while preserving strong pressure on efficiency.
 
-These novel tasks transform ComtradeBench from a static benchmark into a **dynamic, adaptive training environment** that challenges both single-agent robustness (T9) and multi-agent coordination (T10).
+These novel tasks transform ComtradeBench from a static benchmark into a **dynamic, adaptive training environment** that challenges both single-agent robustness (T9) and constrained-budget policy quality (T10).
 
 ### Mock Service Architecture
 
@@ -80,7 +80,7 @@ The embedded mock service is a FastAPI application with per-task fault injection
 comtrade_env/
 ├── server/
 │   ├── comtrade_env_environment.py  ← MCPEnvironment (3 MCP tools)
-│   ├── tasks.py                     ← Task definitions T1-T8
+│   ├── tasks.py                     ← Task definitions T1-T10
 │   ├── judge.py                     ← Scoring engine
 │   └── mock_service/
 │       └── app.py                   ← Stateless /api/data with fault injection
@@ -210,7 +210,7 @@ Training loop:
 | `kl_coeff` | 0.04 | Light KL penalty; allows exploration |
 | `group_size` | 4 | 4 rollouts per task per iteration |
 | `lr` | 1e-5 | Conservative for fine-tuning |
-| `max_steps` | 30 | Sufficient for all T1-T7 tasks |
+| `max_steps` | 30 | Sufficient for all T1-T10 tasks |
 
 ---
 
@@ -318,6 +318,8 @@ pip install openenv-core[core]
 python agent/smoke_test.py --task T1_single_page
 python agent/smoke_test.py --task T7_totals_trap
 python agent/smoke_test.py --task T8_mixed_faults
+python agent/smoke_test.py --task T9_adaptive_adversary
+python agent/smoke_test.py --task T10_multi_agent_coop
 
 # Run unit + integration tests
 pip install pytest

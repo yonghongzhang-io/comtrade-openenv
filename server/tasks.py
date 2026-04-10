@@ -14,8 +14,8 @@ Tasks T1–T10 cover the full spectrum of real-world data-fetching challenges:
   Novel tasks (unique to ComtradeBench):
   T9  Adaptive adversary — fault intensity escalates mid-episode based on
                            agent's success; tests robustness under distribution shift
-  T10 Multi-agent cooperative — two agents share a halved request budget;
-                                must implicitly coordinate page coverage
+  T10 Constrained budget — single agent must finish under a halved
+                           request budget while avoiding redundant fetches
 
 Each Task is a frozen dataclass with:
   task_id       str  — unique identifier (e.g. "T1_single_page")
@@ -57,7 +57,7 @@ class Task:
 
 
 def get_tasks() -> List[Task]:
-    """Return all benchmark tasks in canonical order (T1–T8)."""
+    """Return all benchmark tasks in canonical order (T1–T10)."""
     return [
         Task(
             task_id="T1_single_page",
@@ -202,19 +202,17 @@ def get_tasks() -> List[Task]:
         Task(
             task_id="T10_multi_agent_coop",
             description=(
-                "Multi-agent cooperative data fetching: two independent agents "
-                "share a single request budget of 50 requests (half the normal 100). "
-                "Each agent can only see its own fetched pages. The agents must "
-                "implicitly coordinate to avoid fetching the same pages twice "
-                "(wasting budget) while ensuring all pages are covered. "
-                "Final submission merges both agents' data. "
-                "Tests emergent cooperation without explicit communication."
+                "Constrained-budget data fetching: single-agent challenge with "
+                "a halved request budget (50 requests). The agent must avoid "
+                "redundant page fetches while still covering all pages and "
+                "deduplicating correctly. This keeps T10 stable for the current "
+                "single-agent training stack while preserving pressure from a "
+                "tight budget."
             ),
             query={"reporter": "392", "partner": "410", "flow": "M", "hs": "90", "year": 2021},
             constraints={
                 "paging_mode": "page", "page_size": 10,
                 "max_requests": 50, "rate_limit_qps": 5, "total_rows": 80,
-                "multi_agent": True, "num_agents": 2,
             },
             fault_injection={
                 "mode": "duplicates",

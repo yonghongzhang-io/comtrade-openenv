@@ -47,19 +47,28 @@ def run_one_episode(EnvClient, task_id: str, page_size: int = 500) -> dict:
     totals_dropped = 0
     page = 1
     request_count = 0
+    retry_total = 0
+    retry_429 = 0
+    retry_500 = 0
     run_log = [f"task_id={task_id}"]
 
     while True:
         result = env.fetch_page(page=page, page_size=page_size)
         request_count += 1
-        run_log.append(f"page={page}")
-        run_log.append(f"request={request_count}")
+        run_log.append(f"request={request_count} page={page}")
 
         if result.get("status") in (429, 500) or result.get("retry"):
+            status = result.get("status")
+            retry_total += 1
+            if status == 429:
+                retry_429 += 1
+            if status == 500:
+                retry_500 += 1
+            run_log.append(f"retry status={status} attempt=1 wait_s=0.1")
             time.sleep(0.1)
             result = env.fetch_page(page=page, page_size=page_size)
             request_count += 1
-            run_log.append(f"request={request_count}")
+            run_log.append(f"request={request_count} page={page}")
 
         for row in result.get("rows", []):
             if row.get("isTotal") or row.get("is_total"):
@@ -73,6 +82,7 @@ def run_one_episode(EnvClient, task_id: str, page_size: int = 500) -> dict:
             break
         page += 1
 
+    run_log.append(f"retry_count={retry_total}")
     run_log.append("complete=true")
     data_jsonl = "\n".join(_json.dumps(r, ensure_ascii=False) for r in collected.values())
     metadata = _json.dumps({
@@ -82,6 +92,13 @@ def run_one_episode(EnvClient, task_id: str, page_size: int = 500) -> dict:
         "schema": list(next(iter(collected.values())).keys()) if collected else [],
         "dedup_key": ["year", "reporter", "partner", "flow", "hs", "record_id"],
         "totals_handling": {"enabled": True, "rows_dropped": totals_dropped},
+        "request_count": request_count,
+        "request_budget": task_info.get("constraints", {}).get("max_requests", 100),
+        "request_stats": {
+            "retries_total": retry_total,
+            "retries_429": retry_429,
+            "retries_500": retry_500,
+        },
         "execution_time_seconds": 0.5,
     })
     submit = env.submit_results(data_jsonl, metadata, "\n".join(run_log))
@@ -111,7 +128,8 @@ def main():
     ALL_TASKS = [
         "T1_single_page", "T2_multi_page", "T3_duplicates",
         "T4_rate_limit_429", "T5_server_error_500", "T6_page_drift",
-        "T7_totals_trap", "T8_mixed_faults",
+        "T7_totals_trap", "T8_mixed_faults", "T9_adaptive_adversary",
+        "T10_multi_agent_coop",
     ]
 
     out_path = Path(args.output)
