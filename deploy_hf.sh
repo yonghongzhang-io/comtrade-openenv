@@ -41,7 +41,15 @@ cp "${SRC}/openenv.yaml" .
 cp "${SRC}/__init__.py" .
 cp "${SRC}/client.py" .
 cp "${SRC}/models.py" .
+cp "${SRC}/blog_post.md" .
+cp "${SRC}/llm_results_kimi.json" .
+cp "${SRC}/inference_results_baseline.json" .
+cp "${SRC}/banner.png" .
+cp "${SRC}/benchmark_results.png" .
+cp "${SRC}/training_curve.png" .
 cp -r "${SRC}/server" .
+cp -r "${SRC}/green" .
+rm -rf server/__pycache__ green/__pycache__
 
 # Git add and push
 git add -A
