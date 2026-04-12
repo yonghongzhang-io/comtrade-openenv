@@ -186,7 +186,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="btn-group">
     <a class="btn" href="/docs">API Documentation</a>
     <a class="btn btn-outline" href="https://github.com/yonghongzhang-io/comtrade-openenv" target="_blank">GitHub Repository</a>
-    <a class="btn btn-outline" href="https://huggingface.co/yonghongzhang/ComtradeBench-Blog" target="_blank">Blog Post</a>
+    <a class="btn btn-outline" href="https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog" target="_blank">Read the Blog →</a>
     <a class="btn btn-outline" href="/health">Health Check</a>
   </div>
 
@@ -374,7 +374,7 @@ LANDING_HTML = """<!DOCTYPE html>
     <p>ComtradeBench &middot; AgentBeats Phase 2 &middot; OpenEnv Challenge</p>
     <p style="margin-top:.4rem;">
       <a href="https://github.com/yonghongzhang-io/comtrade-openenv">GitHub</a> &middot;
-      <a href="https://huggingface.co/yonghongzhang/ComtradeBench-Blog">Blog</a> &middot;
+      <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog">Blog</a> &middot;
       <a href="/docs">API Docs</a> &middot;
       <a href="https://github.com/meta-pytorch/OpenEnv">OpenEnv Framework</a>
     </p>
