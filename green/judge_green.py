@@ -39,6 +39,9 @@ TASK_EFFICIENCY_BASELINES: Dict[str, int] = {
     "T5_server_error_500": 4,  # Server error with retries, ~4 requests
     "T6_page_drift": 3,        # Page drift, ~3 requests
     "T7_totals_trap": 8,       # Totals trap, more pages, ~8 requests
+    "T8_mixed_faults": 6,      # Mixed faults tends to need extra retries
+    "T9_adaptive_adversary": 8,  # Escalating faults often trigger retries
+    "T10_constrained_budget": 8,  # Constrained-budget single-agent stress task
 }
 
 # Observability: required traceable fields (must be present in log or metadata)

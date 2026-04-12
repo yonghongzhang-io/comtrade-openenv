@@ -117,6 +117,7 @@ class TestTaskCoverage:
         assert "T10_constrained_budget" in ALL_TASKS
 
     def test_training_covers_all_tasks(self):
+        pytest.importorskip("torch")
         from train_grpo import ALL_TASK_IDS
         assert "T8_mixed_faults" in ALL_TASK_IDS
         assert "T9_adaptive_adversary" in ALL_TASK_IDS
