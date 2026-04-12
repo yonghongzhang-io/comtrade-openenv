@@ -59,7 +59,7 @@ LANDING_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ComtradeBench — UN Trade Data Fetching Benchmark</title>
+<title>ComtradeBench — An OpenEnv Benchmark for Reliable LLM Tool-Use</title>
 <style>
   :root {
     --bg: #0f172a; --surface: #1e293b; --border: #334155;
@@ -172,7 +172,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="hero">
     <div class="hero-badge">OPENENV &middot; AGENTBEATS PHASE 2</div>
     <h1>ComtradeBench</h1>
-    <p>Reliable LLM tool-use benchmark for paginated trade-data retrieval under adversarial API conditions.</p>
+    <p>An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions.</p>
   </div>
 
   <!-- Status -->
