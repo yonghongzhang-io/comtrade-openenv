@@ -1,60 +1,53 @@
 #!/bin/bash
-# Deploy comtrade_env to Hugging Face Spaces
-# Prerequisites: hf auth login (run once to set token)
+# Deploy comtrade_env to Hugging Face Spaces.
+# Uses `hf upload` (handles LFS automatically — no git-lfs required).
+# Prerequisites: hf auth login (run once to set token).
 #
-# Usage: bash deploy_hf.sh
+# Usage: bash /absolute/path/to/deploy_hf.sh
 
 set -e
 
 SPACE_REPO="yonghongzhang/comtrade-env"
 SPACE_URL="https://huggingface.co/spaces/${SPACE_REPO}"
+SRC="$(cd "$(dirname "$0")" && pwd)"
+STAGE_DIR="/tmp/hf-comtrade-env-stage"
 
 echo "=== Deploying comtrade_env to HF Space: ${SPACE_REPO} ==="
 
-# Check auth
 if ! hf auth whoami >/dev/null 2>&1; then
     echo "ERROR: Not logged in to HF. Run: hf auth login"
     exit 1
 fi
 
-# Clone the HF Space repo (or update if exists)
-DEPLOY_DIR="/tmp/hf-comtrade-env-deploy"
-rm -rf "${DEPLOY_DIR}"
-git clone "https://huggingface.co/spaces/${SPACE_REPO}" "${DEPLOY_DIR}" 2>/dev/null || {
-    echo "Cloning fresh..."
-    mkdir -p "${DEPLOY_DIR}"
-    cd "${DEPLOY_DIR}"
-    git init
-    git remote add origin "https://huggingface.co/spaces/${SPACE_REPO}"
-}
+# Stage a clean copy so we never upload __pycache__ / .git junk.
+rm -rf "${STAGE_DIR}"
+mkdir -p "${STAGE_DIR}"
 
-cd "${DEPLOY_DIR}"
+cp "${SRC}/README.md"                     "${STAGE_DIR}/"
+cp "${SRC}/Dockerfile"                    "${STAGE_DIR}/"
+cp "${SRC}/.dockerignore"                 "${STAGE_DIR}/"
+cp "${SRC}/pyproject.toml"                "${STAGE_DIR}/"
+cp "${SRC}/uv.lock"                       "${STAGE_DIR}/"
+cp "${SRC}/openenv.yaml"                  "${STAGE_DIR}/"
+cp "${SRC}/__init__.py"                   "${STAGE_DIR}/"
+cp "${SRC}/client.py"                     "${STAGE_DIR}/"
+cp "${SRC}/models.py"                     "${STAGE_DIR}/"
+cp "${SRC}/blog_post.md"                  "${STAGE_DIR}/"
+cp "${SRC}/llm_results_kimi.json"         "${STAGE_DIR}/"
+cp "${SRC}/inference_results_baseline.json" "${STAGE_DIR}/"
+cp "${SRC}/banner.png"                    "${STAGE_DIR}/"
+cp "${SRC}/benchmark_results.png"         "${STAGE_DIR}/"
+cp "${SRC}/training_curve.png"            "${STAGE_DIR}/"
+cp -r "${SRC}/server"                     "${STAGE_DIR}/"
+cp -r "${SRC}/green"                      "${STAGE_DIR}/"
 
-# Copy all environment files
-SRC="$(dirname "$0")"
-cp "${SRC}/README.md" .
-cp "${SRC}/Dockerfile" .
-cp "${SRC}/.dockerignore" .
-cp "${SRC}/pyproject.toml" .
-cp "${SRC}/uv.lock" .
-cp "${SRC}/openenv.yaml" .
-cp "${SRC}/__init__.py" .
-cp "${SRC}/client.py" .
-cp "${SRC}/models.py" .
-cp "${SRC}/blog_post.md" .
-cp "${SRC}/llm_results_kimi.json" .
-cp "${SRC}/inference_results_baseline.json" .
-cp "${SRC}/banner.png" .
-cp "${SRC}/benchmark_results.png" .
-cp "${SRC}/training_curve.png" .
-cp -r "${SRC}/server" .
-cp -r "${SRC}/green" .
-rm -rf server/__pycache__ green/__pycache__
+# Scrub python bytecode anywhere under the staging tree.
+find "${STAGE_DIR}" -type d -name __pycache__ -prune -exec rm -rf {} +
+find "${STAGE_DIR}" -type f -name '*.pyc' -delete
 
-# Git add and push
-git add -A
-git commit -m "Deploy comtrade_env environment to HF Space" 2>/dev/null || echo "No changes to commit"
-git push origin main --force
+hf upload "${SPACE_REPO}" "${STAGE_DIR}" . \
+    --repo-type=space \
+    --commit-message="Deploy comtrade_env: green consistency + scope clarifications + landing page"
 
 echo ""
 echo "=== Deployed! ==="
