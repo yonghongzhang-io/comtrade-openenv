@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+grpo_output/
+.DS_Store
+.claude/
+submission_package.md

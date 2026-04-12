@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: openenv-comtrade_env
+Version: 0.1.0
+Summary: ComtradeBench — UN Trade Data Fetching Benchmark for OpenEnv
+Requires-Python: >=3.10
+Requires-Dist: openenv-core[core]>=0.2.1
+Requires-Dist: fastmcp>=2.0
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn>=0.30
+Requires-Dist: requests>=2.32
+Provides-Extra: agent
+Requires-Dist: torch>=2.3; extra == "agent"
+Requires-Dist: transformers>=4.45; extra == "agent"
+Requires-Dist: accelerate>=0.34; extra == "agent"
+Requires-Dist: peft>=0.13; extra == "agent"
+Requires-Dist: trl>=0.12; extra == "agent"
+Requires-Dist: openai>=1.50; extra == "agent"
+Requires-Dist: python-dotenv>=1.0; extra == "agent"
+Requires-Dist: gradio>=4.0; extra == "agent"
+Requires-Dist: matplotlib>=3.10; extra == "agent"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"

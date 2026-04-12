@@ -1,0 +1,52 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-comtrade_env"
+version = "0.1.0"
+description = "ComtradeBench — UN Trade Data Fetching Benchmark for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
+    "openenv-core[core]>=0.2.1",
+    # Environment-specific dependencies
+    "fastmcp>=2.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "requests>=2.32",
+]
+
+[project.optional-dependencies]
+agent = [
+    # GRPO training pipeline (agent/ directory)
+    "torch>=2.3",
+    "transformers>=4.45",
+    "accelerate>=0.34",
+    "peft>=0.13",
+    "trl>=0.12",
+    "openai>=1.50",
+    "python-dotenv>=1.0",
+    "gradio>=4.0",
+    "matplotlib>=3.10",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# Server entry point - enables running via: uv run --project . server
+# or: python -m comtrade_env.server.app
+server = "comtrade_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["comtrade_env", "comtrade_env.server"]
+package-dir = { "comtrade_env" = ".", "comtrade_env.server" = "server" }

@@ -1,0 +1,57 @@
+{
+  "results": [
+    {
+      "task_id": "T1_single_page",
+      "reward": 0.98,
+      "score": 98.0
+    },
+    {
+      "task_id": "T2_multi_page",
+      "reward": 0.98,
+      "score": 98.0
+    },
+    {
+      "task_id": "T3_duplicates",
+      "reward": 0.98,
+      "score": 98.0
+    },
+    {
+      "task_id": "T4_rate_limit_429",
+      "reward": 0.95,
+      "score": 95.0
+    },
+    {
+      "task_id": "T5_server_error_500",
+      "reward": 0.957,
+      "score": 95.7
+    },
+    {
+      "task_id": "T6_page_drift",
+      "reward": 0.94,
+      "score": 94.0
+    },
+    {
+      "task_id": "T7_totals_trap",
+      "reward": 0.98,
+      "score": 98.0
+    },
+    {
+      "task_id": "T8_mixed_faults",
+      "reward": 0.964,
+      "score": 96.4
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.969,
+      "score": 96.9
+    },
+    {
+      "task_id": "T10_constrained_budget",
+      "reward": 0.98,
+      "score": 98.0
+    }
+  ],
+  "average_score": 96.8,
+  "agent": "rule-based-baseline",
+  "tasks": 10
+}
