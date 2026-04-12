@@ -165,6 +165,9 @@ A deterministic rule-based agent achieves **96.8 / 100** average across all ten 
 
 ### LLM agent — Moonshot V1-8K (Kimi API)
 
+The published Kimi snapshot currently covers the shared T1-T8 subset. T9 and T10 remain
+baseline-only in this release.
+
 | Task | Score | Reward |
 |------|------:|-------:|
 | T1 Single page | 98.7 | 0.987 |
@@ -175,9 +178,20 @@ A deterministic rule-based agent achieves **96.8 / 100** average across all ten 
 | T6 Page drift | 94.7 | 0.947 |
 | T7 Totals trap | 98.7 | 0.987 |
 | T8 Mixed faults | 97.3 | 0.973 |
-| **Average** | **94.4** | **0.944** |
+| **Average (shared T1-T8 scope)** | **94.4** | **0.944** |
 
 The LLM outperforms the rule-based baseline on Observability — natural language models generate more informative execution traces. The gap on T4/T5 reflects that the Robustness dimension requires **explicit logged evidence** of retry behavior, not just correct output.
+
+### Why prompt design matters for T4/T5
+
+T4 (HTTP 429) and T5 (HTTP 500) are the tasks where prompt design has the largest effect, and they expose a subtle gap between *doing the right thing* and *being scored for it*. The agent loop already retries faults mechanically, so Correctness stays perfect — but if the model treats `<tool_result>` as transient context and never echoes the fault into its own narration, the recovery happens silently and the judge sees no proof. Up to 15 Robustness points evaporate.
+
+Two prompt-level changes closed most of the gap:
+
+- **Persistent `EVENTS:` scratchpad in the system prompt.** The model is instructed to maintain a running event log in every assistant turn (`page=N status=429 retry=1 wait=2s`). Because the scratchpad is regenerated each turn, it survives context truncation and lands verbatim in `submit_results.run_log` — exactly what the Observability and Robustness scorers grep for.
+- **"Log before you retry" framing.** Earlier prompts said *"retry on 429/500"* and the model would silently retry and forget. Reframing as *"first record the fault in EVENTS, then the loop will retry"* turns the fault into a first-class observation rather than an exception to swallow.
+
+The deeper point: T4/T5 are not really testing whether the agent can retry — the loop already does that. They are testing whether the agent's *narration of its own behavior* is faithful enough to be auditable. In production ETL, this is the difference between a pipeline that "worked" and one you can defend in a postmortem.
 
 ### GRPO training curve
 

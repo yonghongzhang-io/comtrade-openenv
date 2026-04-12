@@ -42,15 +42,13 @@ Most API-task benchmarks evaluate whether an agent retrieves the correct answer 
 ComtradeBench evaluates whether the agent executes correctly when the API actively resists correct
 execution:
 
-| Failure Mode | Task(s) | What breaks if the agent ignores it |
-|---|---|---|
-| Cross-page duplicate records | T3, T8 | Overcounted rows, inflated trade totals |
-| HTTP 429 rate-limit errors | T4, T8 | Missing pages from premature page advance |
-| HTTP 500 transient failures | T5 | Silent data gaps if retry is skipped |
-| Non-deterministic page ordering | T6 | Wrong data if position assumed stable |
-| Synthetic totals rows (`is_total=true`) | T7 | Contaminated aggregates |
-| Adaptive fault escalation mid-episode | T9 | Policy breakdown under distribution shift |
-| Halved request budget | T10 | Incomplete retrieval or efficiency penalty |
+- `T3`, `T8`: cross-page duplicate records can overcount rows and inflate trade totals.
+- `T4`, `T8`: HTTP 429 rate limits can create missing pages if the agent advances too early.
+- `T5`: HTTP 500 transient failures can leave silent data gaps when retry is skipped.
+- `T6`: non-deterministic page ordering breaks agents that assume stable row position.
+- `T7`: synthetic totals rows (`is_total=true`) contaminate aggregates unless filtered.
+- `T9`: adaptive fault escalation tests whether policy still holds under mid-episode shift.
+- `T10`: a halved request budget exposes redundant fetches and incomplete retrieval plans.
 
 The agent has three MCP tools and 100 requests. The six-dimensional judge scores correctness,
 completeness, robustness, efficiency, data quality, and observability. There is no partial credit
@@ -228,19 +226,22 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 
 ![Training Curve](training_curve.png)
 
-### LLM Agent (Moonshot V1-8K via Kimi API)
+### LLM Agent (Moonshot V1-8K via Kimi API, published T1-T8 subset)
 
-| Task | Score | Reward | vs Baseline |
-|------|-------|--------|-------------|
-| T1 Single page | 98.7 | 0.987 | +3.7 |
+The published `llm_results_kimi.json` snapshot covers the shared T1-T8 subset only. T9 and T10
+remain baseline-only in this release, so the comparison column below is scoped to the shared tasks.
+
+| Task | Score | Reward | Delta vs baseline (pts) |
+|------|-------|--------|-------------------------|
+| T1 Single page | 98.7 | 0.987 | +0.7 |
 | T2 Multi-page | 98.7 | 0.987 | +0.7 |
 | T3 Duplicates | 98.7 | 0.987 | +0.7 |
-| T4 Rate limit | 83.7 | 0.837 | +0.7 |
-| T5 Server error | 84.3 | 0.843 | +0.6 |
-| T6 Page drift | 94.7 | 0.947 | +0.4 |
-| T7 Totals trap | 98.7 | 0.987 | +2.7 |
+| T4 Rate limit | 83.7 | 0.837 | -11.3 |
+| T5 Server error | 84.3 | 0.843 | -11.4 |
+| T6 Page drift | 94.7 | 0.947 | +0.7 |
+| T7 Totals trap | 98.7 | 0.987 | +0.7 |
 | T8 Mixed faults | 97.3 | 0.973 | +0.9 |
-| **Average** | **94.4** | **0.944** | **+1.3** |
+| **Average (shared T1-T8 scope)** | **94.4** | **0.944** | **-2.2** |
 
 ## License
 

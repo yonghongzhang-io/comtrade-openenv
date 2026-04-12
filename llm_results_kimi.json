@@ -113,7 +113,15 @@
       "steps": 5
     }
   ],
+  "tasks_reported": 8,
+  "task_scope": "T1-T8",
+  "missing_tasks": [
+    "T9_adaptive_adversary",
+    "T10_constrained_budget"
+  ],
+  "average_score": 94.4,
   "average_reward": 0.9435,
+  "baseline_comparison_scope": "shared_tasks_only",
   "model": "moonshot-v1-8k",
   "agent": "ComtradeAgent"
 }
