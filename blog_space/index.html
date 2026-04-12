@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ComtradeBench — An OpenEnv Benchmark for Reliable LLM Tool-Use</title>
+<meta name="description" content="ComtradeBench: an OpenEnv-native benchmark for reliable LLM tool-use under pagination drift, rate limits, server errors, totals traps, and constrained request budgets. With GRPO training pipeline.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface-2: #172033; --border: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #6366f1;
+    --accent2: #818cf8; --green: #22c55e; --red: #ef4444;
+    --orange: #f59e0b; --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.7;
+         -webkit-font-smoothing: antialiased; }
+
+  .container { max-width: 820px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* Top nav */
+  .topnav { position: sticky; top: 0; z-index: 10; background: rgba(15,23,42,.85);
+            backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+            padding: .9rem 1.5rem; display: flex; justify-content: space-between;
+            align-items: center; font-size: .88rem; }
+  .topnav .brand { font-weight: 700; color: var(--text); text-decoration: none;
+                   display: flex; align-items: center; gap: .5rem; }
+  .topnav .brand .dot { width: 8px; height: 8px; border-radius: 50%;
+                        background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,.6); }
+  .topnav .links { display: flex; gap: 1.25rem; }
+  .topnav .links a { color: var(--muted); text-decoration: none; transition: color .15s; }
+  .topnav .links a:hover { color: var(--accent2); }
+
+  /* Hero */
+  .hero { text-align: center; padding: 4rem 0 2.5rem; }
+  .hero-badge { display: inline-block; background: rgba(99,102,241,.15); color: var(--accent2);
+                padding: .4rem 1.1rem; border-radius: 20px; font-size: .78rem; font-weight: 600;
+                letter-spacing: .08em; margin-bottom: 1.25rem;
+                border: 1px solid rgba(99,102,241,.3); text-transform: uppercase; }
+  .hero h1 { font-size: clamp(2rem, 4.2vw, 3.2rem); font-weight: 800; letter-spacing: -.025em;
+             line-height: 1.15;
+             background: linear-gradient(135deg, #e2e8f0 25%, #6366f1 100%);
+             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+             background-clip: text; }
+  .hero .subtitle { color: var(--muted); font-size: 1.15rem; max-width: 640px;
+                    margin: 1rem auto 0; }
+  .hero .byline { color: var(--muted); font-size: .85rem; margin-top: 1.5rem;
+                  font-style: italic; }
+
+  .banner { width: 100%; border-radius: var(--radius); margin: 2rem 0 3rem;
+            border: 1px solid var(--border); }
+
+  /* Badges row */
+  .badges { display: flex; justify-content: center; gap: .6rem; flex-wrap: wrap;
+            margin: 1.5rem 0; }
+  .badges img { height: 22px; }
+
+  /* Button group */
+  .btn-group { display: flex; gap: .75rem; justify-content: center; margin: 2rem 0;
+               flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: .45rem; padding: .6rem 1.35rem;
+         background: var(--accent); color: white; border-radius: 8px; font-size: .88rem;
+         font-weight: 600; text-decoration: none; transition: all .2s; }
+  .btn:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent2);
+                       background: rgba(99,102,241,.08); }
+
+  /* Sections */
+  section { margin: 3.5rem 0; }
+  section h2 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.01em;
+               margin-bottom: 1rem; color: var(--text);
+               border-left: 3px solid var(--accent); padding-left: .9rem; }
+  section h3 { font-size: 1.1rem; font-weight: 700; margin: 2rem 0 .75rem;
+               color: var(--accent2); }
+  section p { color: #cbd5e1; margin-bottom: 1rem; font-size: 1.02rem; }
+  section p strong { color: var(--text); }
+  section ul { color: #cbd5e1; margin: 1rem 0 1rem 1.5rem; }
+  section ul li { margin-bottom: .5rem; font-size: 1rem; }
+  section ul li strong { color: var(--text); }
+
+  /* Pull-quote */
+  blockquote { border-left: 3px solid var(--accent2);
+               background: rgba(99,102,241,.06); padding: 1.1rem 1.25rem;
+               margin: 1.5rem 0; border-radius: 0 8px 8px 0;
+               color: #e2e8f0; font-size: 1.02rem; }
+
+  /* Tables */
+  .table-wrap { margin: 1.5rem 0; overflow-x: auto;
+                background: var(--surface); border: 1px solid var(--border);
+                border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th { background: rgba(99,102,241,.1); color: var(--accent2);
+       font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+       text-transform: uppercase; padding: .85rem 1rem; text-align: left; }
+  td { padding: .7rem 1rem; border-top: 1px solid var(--border); color: #cbd5e1; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums;
+           font-family: 'JetBrains Mono', monospace; font-size: .88rem; }
+  tr:hover td { background: rgba(99,102,241,.04); }
+  td strong, th strong { color: var(--text); }
+  .task-id { font-family: 'JetBrains Mono', monospace; font-weight: 700;
+             color: var(--accent2); font-size: .85rem; }
+  tr.avg-row td { background: rgba(99,102,241,.08); font-weight: 700;
+                  color: var(--text); }
+  tr.novel td:first-child { color: #fca5a5; }
+
+  /* Code */
+  pre { background: #0b1120; border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 1.1rem 1.25rem; overflow-x: auto;
+        margin: 1.25rem 0; font-family: 'JetBrains Mono', monospace;
+        font-size: .85rem; line-height: 1.6; color: #d1d5db; }
+  pre .c { color: #64748b; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: .88em;
+         background: rgba(99,102,241,.12); color: var(--accent2);
+         padding: .1em .35em; border-radius: 4px; }
+  pre code { background: none; color: inherit; padding: 0; font-size: 1em; }
+
+  /* Figure */
+  figure { margin: 2rem 0; }
+  figure img { width: 100%; border-radius: var(--radius);
+               border: 1px solid var(--border); }
+  figcaption { text-align: center; color: var(--muted); font-size: .85rem;
+               margin-top: .75rem; }
+
+  /* Callout for the closing question */
+  .callout { text-align: center; padding: 2rem 1.5rem; margin: 3rem 0;
+             background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(129,140,248,.04));
+             border: 1px solid rgba(99,102,241,.25); border-radius: var(--radius); }
+  .callout .q { font-size: 1.25rem; font-weight: 700; color: var(--text);
+                font-style: italic; margin-bottom: .5rem; }
+  .callout .sub { color: var(--muted); font-size: .95rem; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 3rem 0 1rem; color: var(--muted);
+            font-size: .85rem; border-top: 1px solid var(--border); margin-top: 3rem; }
+  .footer a { color: var(--accent2); text-decoration: none; margin: 0 .5rem; }
+  .footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    .container { padding: 1rem 1rem 3rem; }
+    .hero { padding: 2.5rem 0 1.5rem; }
+    .topnav .links { display: none; }
+    section h2 { font-size: 1.3rem; }
+    table { font-size: .82rem; }
+    th, td { padding: .55rem .6rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="#top" class="brand"><span class="dot"></span> ComtradeBench Blog</a>
+  <div class="links">
+    <a href="#why">Why</a>
+    <a href="#design">Design</a>
+    <a href="#scoring">Scoring</a>
+    <a href="#results">Results</a>
+    <a href="#training">Training</a>
+    <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-env" target="_blank">Live Space ↗</a>
+  </div>
+</nav>
+
+<div class="container" id="top">
+
+  <div class="hero">
+    <div class="hero-badge">OpenEnv · AgentBeats Phase 2</div>
+    <h1>ComtradeBench</h1>
+    <p class="subtitle">An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions.</p>
+    <div class="badges">
+      <a href="https://github.com/yonghongzhang-io/comtrade-openenv" target="_blank"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github" alt="GitHub"/></a>
+      <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-env" target="_blank"><img src="https://img.shields.io/badge/HF%20Space-Live%20Demo-FFD21E?logo=huggingface&logoColor=black" alt="HF Space"/></a>
+      <img src="https://img.shields.io/badge/OpenEnv-Native-4B8BBE" alt="OpenEnv"/>
+      <img src="https://img.shields.io/badge/Tasks-10-brightgreen" alt="10 Tasks"/>
+      <img src="https://img.shields.io/badge/Training-GRPO-orange" alt="GRPO"/>
+    </div>
+    <div class="byline">AgentBeats Phase 2 — OpenEnv Challenge Submission &nbsp;|&nbsp; Author: MateFin</div>
+  </div>
+
+  <img src="banner.png" alt="ComtradeBench — An OpenEnv Benchmark for Reliable LLM Tool-Use" class="banner"/>
+
+  <div class="btn-group">
+    <a class="btn" href="https://huggingface.co/spaces/yonghongzhang/comtrade-env" target="_blank">Live Environment Space →</a>
+    <a class="btn btn-outline" href="https://github.com/yonghongzhang-io/comtrade-openenv" target="_blank">GitHub Repo</a>
+  </div>
+
+  <section id="why">
+    <h2>Agents should be judged by whether they finish the job</h2>
+    <p>Large language models are often evaluated on what they can <strong>say</strong>. Real agents, however, are judged by whether they can <strong>finish the job</strong> when tools fail.</p>
+    <p>In practical API workflows, failure rarely comes from language alone. Pages drift. Duplicate rows appear across requests. Rate limits interrupt execution. Transient server errors force retries. Summary rows contaminate aggregates. Budgets make brute-force strategies impossible.</p>
+    <p>These are not unusual edge cases. <strong>They are normal operating conditions for production systems.</strong></p>
+    <p>ComtradeBench is an OpenEnv benchmark designed to measure exactly this problem: can an LLM agent execute a multi-step API workflow reliably under realistic failure modes?</p>
+  </section>
+
+  <section>
+    <h2>Why this benchmark matters</h2>
+    <p>Many current evaluations still focus on final answers, clean tool calls, or static environments. But deployed agents fail for more operational reasons:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Failure</th><th>What goes wrong</th></tr></thead>
+        <tbody>
+          <tr><td>Miss pages</td><td>Incomplete data submitted as complete</td></tr>
+          <tr><td>Retry incorrectly</td><td>Page skipped after error — silent data gap</td></tr>
+          <tr><td>Double-count duplicates</td><td>Overcounted rows, inflated aggregates</td></tr>
+          <tr><td>Leak summary rows</td><td>Contaminated totals corrupt downstream analysis</td></tr>
+          <tr><td>Waste budget</td><td>Redundant fetches exhaust request limit</td></tr>
+          <tr><td>Recover silently</td><td>No auditable trace — failure invisible in production</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>These are <strong>execution failures</strong>, not just reasoning failures.</p>
+    <p>If we want useful agents, we need benchmarks that measure reliable task completion under imperfect conditions — not only answer quality in idealized settings.</p>
+  </section>
+
+  <section id="design">
+    <h2>What ComtradeBench is</h2>
+    <blockquote>ComtradeBench is an OpenEnv-native benchmark and training environment for reliable tool-use. The domain is trade-data retrieval; the problem is broader: robust multi-step API execution under shifting, imperfect, and partially adversarial conditions.</blockquote>
+    <p>The environment asks an agent to retrieve, clean, and submit records from a paginated API while handling:</p>
+    <ul>
+      <li><strong>Pagination drift</strong> — page ordering randomized between calls</li>
+      <li><strong>Duplicate records</strong> — within-page (8%) and cross-page (3%) overlap</li>
+      <li><strong>Transient errors</strong> — HTTP 429 rate-limits and HTTP 500 server faults</li>
+      <li><strong>Totals trap</strong> — synthetic summary rows mixed into real data</li>
+      <li><strong>Mixed faults</strong> — rate-limit retry + dedup simultaneously</li>
+      <li><strong>Constrained budget</strong> — halved request limit, no room for waste</li>
+    </ul>
+    <p>The goal is not to test whether the agent can <em>describe</em> the workflow. The goal is to test whether it can <em>execute</em> it — correctly, completely, efficiently, and robustly.</p>
+  </section>
+
+  <section>
+    <h2>Environment design</h2>
+    <p>Each episode gives the agent a parameterized retrieval task and a limited request budget. The agent interacts through <strong>three MCP tools only</strong>:</p>
+    <pre><code>get_task_info()         →  task parameters + request budget
+fetch_page(page, size)  →  {rows, has_more}  or  {status: 429|500, retry: true}
+submit_results(...)     →  {reward, score, breakdown}</code></pre>
+    <p>The benchmark is structured as a <strong>curriculum of ten tasks</strong>:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Task</th><th>Core challenge</th></tr></thead>
+        <tbody>
+          <tr><td class="task-id">T1</td><td>Single page</td><td>Baseline correctness</td></tr>
+          <tr><td class="task-id">T2</td><td>Multi-page pagination</td><td>Merge 2,345+ rows across pages</td></tr>
+          <tr><td class="task-id">T3</td><td>Duplicates</td><td>Primary-key deduplication</td></tr>
+          <tr><td class="task-id">T4</td><td>HTTP 429</td><td>Backoff + retry without data loss</td></tr>
+          <tr><td class="task-id">T5</td><td>HTTP 500</td><td>Transient error recovery</td></tr>
+          <tr><td class="task-id">T6</td><td>Page drift</td><td>Canonicalize under non-deterministic ordering</td></tr>
+          <tr><td class="task-id">T7</td><td>Totals trap</td><td>Filter <code>is_total=true</code> rows</td></tr>
+          <tr><td class="task-id">T8</td><td>Mixed faults</td><td>Retry AND dedup simultaneously</td></tr>
+          <tr class="novel"><td class="task-id">T9</td><td><strong>Adaptive adversary</strong></td><td><strong>Fault intensity escalates mid-episode</strong></td></tr>
+          <tr class="novel"><td class="task-id">T10</td><td><strong>Constrained budget</strong></td><td><strong>50 requests instead of 100</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>T9 is, to our knowledge, among the earliest OpenEnv-style tasks to model <strong>within-episode fault escalation</strong> — where the environment becomes harder as the agent makes progress.</p>
+  </section>
+
+  <section>
+    <h2>Why OpenEnv</h2>
+    <p>We built ComtradeBench on OpenEnv because this benchmark is meant to be more than a one-off simulator.</p>
+    <p>OpenEnv gives us a standard environment interface, reproducible execution, and clean integration with evaluation and post-training workflows. The same environment code runs both in-process during GRPO training and as a deployed Docker service during evaluation — with no divergence.</p>
+    <p>Our goal is not only to score agents, but to provide a <strong>reusable environment where robustness can be studied and trained systematically</strong>.</p>
+  </section>
+
+  <section id="scoring">
+    <h2>Scoring what actually matters</h2>
+    <p>ComtradeBench uses structured evaluation across <strong>six dimensions</strong> — not a binary pass/fail:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dimension</th><th>Weight</th><th>What it measures</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Correctness</strong></td><td class="num"><strong>30%</strong></td><td>All expected rows present with correct field values</td></tr>
+          <tr><td>Completeness</td><td class="num">15%</td><td>Zero missing records</td></tr>
+          <tr><td>Robustness</td><td class="num">15%</td><td>Correct fault handling with logged evidence</td></tr>
+          <tr><td>Efficiency</td><td class="num">15%</td><td>Request count vs. task-optimal minimum</td></tr>
+          <tr><td>Data Quality</td><td class="num">15%</td><td>No duplicates or leaked totals rows</td></tr>
+          <tr><td>Observability</td><td class="num">10%</td><td>Structured execution trace in the run log</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Why multi-dimensional scoring matters:</strong> An agent that retrieves correct data but skips retry logging loses 15 points on Robustness. An agent that skips pages to save budget loses Completeness and all Efficiency credit. These behaviors are not equivalent — the benchmark does not treat them as equivalent.</p>
+    <p>The <strong>Observability</strong> dimension deserves special note: requiring structured log entries incentivizes the agent to maintain explicit execution state. This is not artificial — structured logs are how production ETL pipelines are monitored and debugged.</p>
+  </section>
+
+  <section id="results">
+    <h2>Baselines and results</h2>
+
+    <h3>Rule-based baseline (no LLM)</h3>
+    <p>A deterministic rule-based agent achieves <strong>96.8 / 100</strong> average across all ten tasks, confirming the environment is well-calibrated and solvable.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Task</th><th>Score</th><th>Reward</th></tr></thead>
+        <tbody>
+          <tr><td>T1 Single page</td><td class="num">98.0</td><td class="num">0.980</td></tr>
+          <tr><td>T2 Multi-page</td><td class="num">98.0</td><td class="num">0.980</td></tr>
+          <tr><td>T3 Duplicates</td><td class="num">98.0</td><td class="num">0.980</td></tr>
+          <tr><td>T4 Rate limit (429)</td><td class="num">95.0</td><td class="num">0.950</td></tr>
+          <tr><td>T5 Server error (500)</td><td class="num">95.7</td><td class="num">0.957</td></tr>
+          <tr><td>T6 Page drift</td><td class="num">94.0</td><td class="num">0.940</td></tr>
+          <tr><td>T7 Totals trap</td><td class="num">98.0</td><td class="num">0.980</td></tr>
+          <tr><td>T8 Mixed faults</td><td class="num">96.4</td><td class="num">0.964</td></tr>
+          <tr><td>T9 Adaptive adversary</td><td class="num">96.9</td><td class="num">0.969</td></tr>
+          <tr><td>T10 Constrained budget</td><td class="num">98.0</td><td class="num">0.980</td></tr>
+          <tr class="avg-row"><td><strong>Average</strong></td><td class="num"><strong>96.8</strong></td><td class="num"><strong>0.968</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>LLM agent — Moonshot V1-8K (Kimi API)</h3>
+    <p>The published Kimi snapshot currently covers the shared T1-T8 subset. T9 and T10 remain baseline-only in this release.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Task</th><th>Score</th><th>Reward</th></tr></thead>
+        <tbody>
+          <tr><td>T1 Single page</td><td class="num">98.7</td><td class="num">0.987</td></tr>
+          <tr><td>T2 Multi-page</td><td class="num">98.7</td><td class="num">0.987</td></tr>
+          <tr><td>T3 Duplicates</td><td class="num">98.7</td><td class="num">0.987</td></tr>
+          <tr><td>T4 Rate limit</td><td class="num">83.7</td><td class="num">0.837</td></tr>
+          <tr><td>T5 Server error</td><td class="num">84.3</td><td class="num">0.843</td></tr>
+          <tr><td>T6 Page drift</td><td class="num">94.7</td><td class="num">0.947</td></tr>
+          <tr><td>T7 Totals trap</td><td class="num">98.7</td><td class="num">0.987</td></tr>
+          <tr><td>T8 Mixed faults</td><td class="num">97.3</td><td class="num">0.973</td></tr>
+          <tr class="avg-row"><td><strong>Average (shared T1-T8 scope)</strong></td><td class="num"><strong>94.4</strong></td><td class="num"><strong>0.944</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The LLM outperforms the rule-based baseline on Observability — natural language models generate more informative execution traces. The gap on T4/T5 reflects that the Robustness dimension requires <strong>explicit logged evidence</strong> of retry behavior, not just correct output.</p>
+
+    <figure>
+      <img src="benchmark_results.png" alt="ComtradeBench benchmark results"/>
+      <figcaption>Rule-based baseline vs. Kimi LLM agent across T1-T8.</figcaption>
+    </figure>
+
+    <h3>Why prompt design matters for T4/T5</h3>
+    <p>T4 (HTTP 429) and T5 (HTTP 500) are the tasks where prompt design has the largest effect, and they expose a subtle gap between <em>doing the right thing</em> and <em>being scored for it</em>. The agent loop already retries faults mechanically, so Correctness stays perfect — but if the model treats <code>&lt;tool_result&gt;</code> as transient context and never echoes the fault into its own narration, the recovery happens silently and the judge sees no proof. Up to 15 Robustness points evaporate.</p>
+    <p>Two prompt-level changes closed most of the gap:</p>
+    <ul>
+      <li><strong>Persistent <code>EVENTS:</code> scratchpad in the system prompt.</strong> The model is instructed to maintain a running event log in every assistant turn (<code>page=N status=429 retry=1 wait=2s</code>). Because the scratchpad is regenerated each turn, it survives context truncation and lands verbatim in <code>submit_results.run_log</code> — exactly what the Observability and Robustness scorers grep for.</li>
+      <li><strong>"Log before you retry" framing.</strong> Earlier prompts said <em>"retry on 429/500"</em> and the model would silently retry and forget. Reframing as <em>"first record the fault in EVENTS, then the loop will retry"</em> turns the fault into a first-class observation rather than an exception to swallow.</li>
+    </ul>
+    <p>The deeper point: T4/T5 are not really testing whether the agent can retry — the loop already does that. They are testing whether the agent's <em>narration of its own behavior</em> is faithful enough to be auditable. In production ETL, this is the difference between a pipeline that "worked" and one you can defend in a postmortem.</p>
+  </section>
+
+  <section id="training">
+    <h2>GRPO training curve</h2>
+    <p>We ran 8 iterations of GRPO-style rollouts with group-relative advantage normalization. Training signal is reward-only — no human labels, no reward model. Mean reward exceeded the rule-based baseline in <strong>6 of 8 iterations</strong>.</p>
+    <figure>
+      <img src="training_curve.png" alt="GRPO training curve"/>
+      <figcaption>GRPO training curve — reward-only optimization over 8 iterations.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What this benchmark reveals</h2>
+    <p>ComtradeBench is designed to expose a gap that clean evaluations often miss: agents can appear capable in idealized settings while remaining brittle under operational noise.</p>
+    <p>The hardest problems are not "knowing what the API is." They are:</p>
+    <ul>
+      <li>continuing correctly <strong>after an interruption</strong></li>
+      <li>maintaining data integrity <strong>across many pages</strong></li>
+      <li>adapting when <strong>conditions shift mid-episode</strong></li>
+      <li>balancing <strong>coverage against cost</strong></li>
+    </ul>
+    <p>This is where reliable agents differ from merely fluent ones.</p>
+  </section>
+
+  <section>
+    <h2>Benchmark and training substrate</h2>
+    <p>ComtradeBench is not just an evaluation harness — it is built to support agent improvement.</p>
+    <p>The environment ships with a full <strong>GRPO training pipeline</strong>: reproducible rollouts, group-relative advantage normalization, and reward-only optimization. No human labels needed. No separate reward model.</p>
+    <p>This is an intentional design choice: if robust tool-use is a real bottleneck for agentic AI, we need environments that can <strong>both measure and train</strong> that capability — with identical conditions in evaluation and training.</p>
+  </section>
+
+  <section>
+    <h2>Quick start</h2>
+    <pre><code># No LLM, no GPU, no API key required
+git clone https://github.com/yonghongzhang-io/comtrade-openenv
+pip install openenv-core[core]
+python agent/smoke_test.py --task T1_single_page
+python agent/smoke_test.py --task T9_adaptive_adversary
+
+# GRPO training via local Ollama (CPU-capable)
+python agent/train_grpo.py \
+    --api-url http://localhost:11434/v1 \
+    --api-model qwen2.5:7b \
+    --num-iterations 200 --group-size 4</code></pre>
+    <p>All benchmark data is generated procedurally from a seeded PRNG — no external fixtures, no live API dependency. Every result is fully reproducible from a task ID and a random seed.</p>
+  </section>
+
+  <div class="callout">
+    <div class="q">💬 Can an agent still finish the job when the API fights back?</div>
+    <div class="sub">That question matters far beyond trade data.</div>
+  </div>
+
+  <section>
+    <h2>Conclusion</h2>
+    <p>The question above applies to any agent expected to operate against real interfaces with pagination, retries, noisy outputs, and resource limits.</p>
+    <p>If we want more reliable agents, we need environments that reward reliability directly. That is the role ComtradeBench is designed to play.</p>
+  </section>
+
+  <div class="footer">
+    <p>ComtradeBench &middot; AgentBeats Phase 2 &middot; OpenEnv Challenge</p>
+    <p style="margin-top:.5rem;">
+      <a href="https://github.com/yonghongzhang-io/comtrade-openenv" target="_blank">GitHub</a> ·
+      <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-env" target="_blank">HF Space</a> ·
+      <a href="https://github.com/meta-pytorch/OpenEnv" target="_blank">OpenEnv Framework</a>
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
