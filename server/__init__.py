@@ -6,6 +6,12 @@
 
 """Comtrade Env environment server components."""
 
-from .comtrade_env_environment import ComtradeEnvironment
-
 __all__ = ["ComtradeEnvironment"]
+
+
+def __getattr__(name: str):
+    if name == "ComtradeEnvironment":
+        from .comtrade_env_environment import ComtradeEnvironment
+
+        return ComtradeEnvironment
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

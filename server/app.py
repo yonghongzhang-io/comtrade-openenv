@@ -172,7 +172,7 @@ LANDING_HTML = """<!DOCTYPE html>
   <div class="hero">
     <div class="hero-badge">OPENENV &middot; AGENTBEATS PHASE 2</div>
     <h1>ComtradeBench</h1>
-    <p>An MCP benchmark environment for evaluating LLM agents on paginated data fetching, fault handling, and deduplication against a simulated UN Comtrade trade API.</p>
+    <p>Reliable LLM tool-use benchmark for paginated trade-data retrieval under adversarial API conditions.</p>
   </div>
 
   <!-- Status -->
@@ -264,6 +264,26 @@ LANDING_HTML = """<!DOCTYPE html>
         <div class="score-track"><div class="score-fill" style="width:10%"></div></div>
         <span class="score-val">10</span>
       </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="card-icon">📈</span> Results Snapshot</h3>
+      <p style="font-size:.85rem; color:var(--text); margin-bottom:.6rem;">
+        Rule-based baseline: <strong>96.8 / 100</strong> across T1-T10.
+      </p>
+      <p style="font-size:.82rem; color:var(--muted); line-height:1.7;">
+        Moonshot V1-8K (Kimi): <strong style="color:var(--text)">94.4 / 100</strong> on the
+        published T1-T8 run. T9 adds adaptive fault escalation. T10 halves the request budget.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3><span class="card-icon">🧭</span> Why It Matters</h3>
+      <p style="font-size:.82rem; color:var(--muted); line-height:1.7;">
+        Final answers are not enough. ComtradeBench rewards agents that recover from 429/500
+        faults, deduplicate correctly, filter totals rows, stay within budget, and leave an
+        auditable run log.
+      </p>
     </div>
 
     <!-- API Endpoints -->
