@@ -1,0 +1,165 @@
+"""
+plot_benchmark.py — regenerate benchmark_results.png from the canonical
+result JSON files (inference_results_baseline.json, llm_results_kimi.json,
+llm_results_llama.json).
+
+Produces a 3-bar-per-task chart (Baseline / Kimi-128k / Llama-3.3-70B) with
+T9 and T10 highlighted as novel tasks and a visual emphasis on the T9
+cross-model gap.
+
+Usage:
+  python agent/plot_benchmark.py
+  # overwrites benchmark_results.png in the current directory
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Rectangle
+
+
+TASK_DISPLAY = {
+    "T1_single_page":           "T1\nSingle",
+    "T2_multi_page":             "T2\nMulti",
+    "T3_duplicates":             "T3\nDedup",
+    "T4_rate_limit_429":         "T4\n429",
+    "T5_server_error_500":       "T5\n500",
+    "T6_page_drift":             "T6\nDrift",
+    "T7_totals_trap":            "T7\nTotals",
+    "T8_mixed_faults":           "T8\nMixed",
+    "T9_adaptive_adversary":     "T9\nAdaptive*",
+    "T10_constrained_budget":    "T10\nBudget*",
+}
+NOVEL_TASKS = {"T9_adaptive_adversary", "T10_constrained_budget"}
+
+
+def load_scores(path: Path) -> dict[str, float]:
+    data = json.loads(path.read_text())
+    out = {}
+    for r in data["results"]:
+        out[r["task_id"]] = r["score"]
+    return out
+
+
+def main() -> None:
+    root = Path(__file__).resolve().parent.parent
+    baseline = load_scores(root / "inference_results_baseline.json")
+    kimi = load_scores(root / "llm_results_kimi.json")
+    llama = load_scores(root / "llm_results_llama.json")
+
+    task_order = list(TASK_DISPLAY.keys())
+    xlabels = [TASK_DISPLAY[t] for t in task_order]
+
+    baseline_scores = [baseline[t] for t in task_order]
+    kimi_scores = [kimi[t] for t in task_order]
+    llama_scores = [llama[t] for t in task_order]
+
+    baseline_avg = sum(baseline_scores) / len(baseline_scores)
+    kimi_avg = sum(kimi_scores) / len(kimi_scores)
+    llama_avg = sum(llama_scores) / len(llama_scores)
+
+    # Theme — match the dark palette used on the landing page and blog
+    bg = "#0f172a"
+    surface = "#1e293b"
+    text_color = "#e2e8f0"
+    muted = "#94a3b8"
+    color_baseline = "#818cf8"  # indigo
+    color_kimi = "#4ade80"       # green
+    color_llama = "#f87171"      # red
+    novel_shade = "#334155"
+
+    fig, ax = plt.subplots(figsize=(14, 6.5), facecolor=bg)
+    ax.set_facecolor(bg)
+
+    x = list(range(len(task_order)))
+    width = 0.27
+
+    # Novel-task background shading (T9, T10)
+    for i, t in enumerate(task_order):
+        if t in NOVEL_TASKS:
+            ax.axvspan(i - 0.5, i + 0.5, color=novel_shade, alpha=0.35, zorder=0)
+
+    # Bars
+    bars_b = ax.bar([xi - width for xi in x], baseline_scores, width,
+                    label=f"Rule-Based Baseline (avg {baseline_avg:.1f})",
+                    color=color_baseline, edgecolor=bg, linewidth=0.5, zorder=3)
+    bars_k = ax.bar(x, kimi_scores, width,
+                    label=f"Kimi Moonshot V1-128k (avg {kimi_avg:.1f})",
+                    color=color_kimi, edgecolor=bg, linewidth=0.5, zorder=3)
+    bars_l = ax.bar([xi + width for xi in x], llama_scores, width,
+                    label=f"Llama 3.3 70B (avg {llama_avg:.1f})",
+                    color=color_llama, edgecolor=bg, linewidth=0.5, zorder=3)
+
+    # Value labels on top of each bar
+    def label_bars(bars, values, color):
+        for bar, v in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 1.2,
+                    f"{v:.1f}", ha="center", va="bottom",
+                    fontsize=8.5, color=color, fontweight="bold", zorder=4)
+
+    label_bars(bars_b, baseline_scores, color_baseline)
+    label_bars(bars_k, kimi_scores, color_kimi)
+    label_bars(bars_l, llama_scores, color_llama)
+
+    # Baseline reference line
+    ax.axhline(baseline_avg, color=color_baseline, linestyle="--",
+               linewidth=1, alpha=0.45, zorder=1)
+
+    # Callout arrow for T9 discriminative gap
+    t9_idx = task_order.index("T9_adaptive_adversary")
+    gap_text = f"T9 cross-model gap\nKimi {kimi_scores[t9_idx]:.1f}  vs  Llama {llama_scores[t9_idx]:.1f}\n→ {kimi_scores[t9_idx] - llama_scores[t9_idx]:.1f} pts"
+    ax.annotate(gap_text,
+                xy=(t9_idx + width, llama_scores[t9_idx] + 2),
+                xytext=(t9_idx - 1.8, 45),
+                fontsize=9, color=text_color, fontweight="bold",
+                ha="left", va="center",
+                bbox=dict(boxstyle="round,pad=0.45", facecolor=surface,
+                          edgecolor=color_llama, linewidth=1),
+                arrowprops=dict(arrowstyle="->", color=muted, lw=1.2,
+                                connectionstyle="arc3,rad=-0.15"))
+
+    # Novel marker text
+    ax.text(task_order.index("T9_adaptive_adversary"), 12,
+            "★ Novel tasks", ha="center", va="bottom",
+            fontsize=9, color=muted, style="italic")
+
+    # Chart chrome
+    ax.set_title("ComtradeBench — Cross-model Results on the 10-Task Suite",
+                 fontsize=14, color=text_color, fontweight="bold", pad=16)
+    ax.set_ylabel("Score (0-100)", color=text_color, fontsize=11)
+    ax.set_ylim(0, 108)
+    ax.set_xticks(x)
+    ax.set_xticklabels(xlabels, color=text_color, fontsize=9.5)
+    ax.tick_params(axis="y", colors=text_color)
+
+    for spine in ax.spines.values():
+        spine.set_color(muted)
+        spine.set_alpha(0.4)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.grid(axis="y", color=muted, alpha=0.15, linestyle="-", linewidth=0.5, zorder=0)
+    ax.set_axisbelow(True)
+
+    legend = ax.legend(loc="lower left", fontsize=9.5, facecolor=surface,
+                       edgecolor=muted, labelcolor=text_color, framealpha=0.95)
+    legend.get_frame().set_alpha(0.95)
+
+    # Footer caption
+    fig.text(0.5, 0.015,
+             "T9 (adaptive adversary) and T10 (constrained budget) are novel tasks; "
+             "T9 produces the sharpest discriminative signal between models.",
+             ha="center", fontsize=9, color=muted, style="italic")
+
+    plt.tight_layout(rect=(0, 0.03, 1, 1))
+    out_path = root / "benchmark_results.png"
+    fig.savefig(out_path, dpi=140, facecolor=bg, bbox_inches="tight")
+    print(f"Saved: {out_path} ({out_path.stat().st_size} bytes)")
+
+
+if __name__ == "__main__":
+    main()
