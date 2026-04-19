@@ -1,5 +1,5 @@
 ---
-title: "ComtradeBench: An OpenEnv Benchmark for Reliable LLM Tool-Use"
+title: "ComtradeBench: An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions"
 emoji: 📊
 colorFrom: indigo
 colorTo: gray
@@ -16,6 +16,24 @@ tags:
   - grpo
 ---
 
+<p align="center">
+  <img src="banner.png" width="100%" alt="ComtradeBench — An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions"/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/yonghongzhang-io/comtrade-openenv"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github" alt="GitHub"/></a>
+  &nbsp;
+  <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-env"><img src="https://img.shields.io/badge/HF%20Space-Live%20Demo-FFD21E?logo=huggingface&logoColor=black" alt="HF Space"/></a>
+  &nbsp;
+  <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog"><img src="https://img.shields.io/badge/Blog-Technical%20Write--up-6366f1" alt="Blog"/></a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/OpenEnv-Native-4B8BBE" alt="OpenEnv"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Tasks-10-brightgreen" alt="10 Tasks"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Training-GRPO-orange" alt="GRPO"/>
+</p>
+
 # ComtradeBench
 
 ### An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions
@@ -29,10 +47,24 @@ summary rows, and constrained request budgets.
 The environment is **adversarial by design**: fault injection, non-stationary dynamics, and
 multi-dimensional scoring reward correct execution, not fluent output.
 
-**AgentBeats Phase 2 — OpenEnv Challenge** | Author: MateFin  
+**AgentBeats Phase 2 — OpenEnv Challenge** | Author: MateFin
 [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) ·
-[HF Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) ·
-[Blog](https://huggingface.co/yonghongzhang/ComtradeBench-Blog)
+[Env Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) ·
+[Blog](https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog)
+
+---
+
+## Results at a glance
+
+| Agent | Avg (T1-T10) | Beats baseline on | Notes |
+|---|---:|:---:|---|
+| Rule-based baseline | **96.8 / 100** | reference | deterministic, no LLM |
+| Kimi / Moonshot V1 | **95.1 / 100** | **8 of 10 tasks** | matches or exceeds baseline on T1-T3, T6-T10; remaining gap concentrated in T4/T5 Robustness |
+| GRPO (reward-only, Qwen2.5-7B) | see curve | — | beat rule-based baseline in 6 of 8 training iterations, no human labels, no reward model |
+
+Novel hard tasks **T9 (adaptive adversary)** and **T10 (constrained budget)** are covered by both
+baseline and LLM evaluation. Full tables and training curve below. The same environment code runs
+in-process during GRPO rollouts and as a deployed Docker service during eval, with zero divergence.
 
 ---
 
@@ -191,16 +223,23 @@ docker run -p 8000:8000 comtrade-env:latest
 ### 5. Deploy to Hugging Face Spaces
 
 ```bash
-openenv push --repo-id <your-hf-org>/comtrade-bench
+# Auto-uploads README, Dockerfile, server/, green/, blog, images, results JSONs.
+# Uses `hf upload` so LFS is handled without a local git-lfs install.
+bash deploy_hf.sh
+```
+
+Or, from scratch with the OpenEnv CLI:
+
+```bash
+openenv push --repo-id <your-hf-org>/comtrade-env
 ```
 
 ## Key Design Decisions
 
-- **In-process environment**: `InProcessEnvClient` bypasses HTTP entirely for training, avoiding serialisation overhead and 422 errors from the typed `/step` endpoint.
-- **Episode isolation**: Each rollout worker gets its own `InProcessEnvClient`. The mock service keys state by `(task_id, episode_id)` to prevent leakage between concurrent agents.
-- **Thread-safe mock startup**: A module-level lock + event prevents port conflicts when multiple `ComtradeEnvironment` instances initialise in parallel.
-- **GRPO correctness**: `old_log_probs` collected under `no_grad` before each gradient step, ensuring `ratio != 1` and clipping actually activates.
-- **Robust tokenisation**: `tokenise_trajectories` uses `add_special_tokens=False` with BOS probe to correctly split prompt/completion regardless of tokenizer quirks.
+- **Same env code in training and eval.** Rollouts use `InProcessEnvClient`, eval uses the Docker Space. Both construct the identical `ComtradeEnvironment` instance, so training conditions and judged conditions never diverge.
+- **Episode isolation across concurrent rollouts.** The embedded mock service keys state by `(task_id, episode_id)`, so parallel GRPO workers never corrupt each other's data even though they share one service.
+- **Procedural fixtures, not recorded data.** All 10 tasks are generated from a seeded PRNG. No external API dependency, no fixture drift, full reproducibility from a task ID plus seed.
+- **Scoring aligned to training signal.** The six-dimensional judge emits a scalar reward that matches the same breakdown used for eval, so GRPO optimises directly against the evaluation metric rather than a proxy.
 
 ## Results
 
@@ -221,6 +260,7 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 | **Average** | **96.8** | **0.968** |
 
 ![Benchmark Results](benchmark_results.png)
+*Rule-based baseline vs. Kimi LLM agent across the 10-task suite.*
 
 ### GRPO Training Curve (8 iterations, real LLM)
 
