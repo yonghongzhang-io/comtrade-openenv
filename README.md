@@ -226,10 +226,11 @@ openenv push --repo-id <your-hf-org>/comtrade-bench
 
 ![Training Curve](training_curve.png)
 
-### LLM Agent (Moonshot V1-8K via Kimi API, published T1-T8 subset)
+### LLM Agent (Kimi / Moonshot V1 via API — full T1-T10 coverage)
 
-The published `llm_results_kimi.json` snapshot covers the shared T1-T8 subset only. T9 and T10
-remain baseline-only in this release, so the comparison column below is scoped to the shared tasks.
+T1-T8 were evaluated under `moonshot-v1-8k`. T9 and T10 required a larger context window due to
+longer episodes (mid-episode fault escalation and budget-aware rollouts) and were evaluated under
+`moonshot-v1-128k`. Both are the same Kimi / Moonshot V1 model family at `temperature=0.0`.
 
 | Task | Score | Reward | Delta vs baseline (pts) |
 |------|-------|--------|-------------------------|
@@ -241,7 +242,14 @@ remain baseline-only in this release, so the comparison column below is scoped t
 | T6 Page drift | 94.7 | 0.947 | +0.7 |
 | T7 Totals trap | 98.7 | 0.987 | +0.7 |
 | T8 Mixed faults | 97.3 | 0.973 | +0.9 |
-| **Average (shared T1-T8 scope)** | **94.4** | **0.944** | **-2.2** |
+| T9 Adaptive adversary | 97.5 | 0.975 | +0.6 |
+| T10 Constrained budget | 98.7 | 0.987 | +0.7 |
+| **Average (T1-T10)** | **95.1** | **0.951** | **-1.7** |
+
+The LLM matches or slightly exceeds the rule-based baseline on **8 of 10 tasks**, including the two
+novel hard tasks T9 (adaptive adversary) and T10 (constrained budget). The remaining gap is
+concentrated in T4/T5, where the Robustness score penalizes silent retries — see the "Why prompt
+design matters" section in the blog post for the mitigation strategy.
 
 ## License
 

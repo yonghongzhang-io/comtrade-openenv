@@ -12,7 +12,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 3
+      "steps": 3,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T2_multi_page",
@@ -26,7 +27,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 7
+      "steps": 7,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T3_duplicates",
@@ -40,7 +42,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T4_rate_limit_429",
@@ -54,7 +57,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T5_server_error_500",
@@ -68,7 +72,8 @@
         "data_quality": 15.0,
         "observability": 9.34
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T6_page_drift",
@@ -82,7 +87,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T7_totals_trap",
@@ -96,7 +102,8 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
     },
     {
       "task_id": "T8_mixed_faults",
@@ -110,18 +117,47 @@
         "data_quality": 15.0,
         "observability": 8.67
       },
-      "steps": 5
+      "steps": 5,
+      "model": "moonshot-v1-8k"
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.975,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 7,
+      "model": "moonshot-v1-128k"
+    },
+    {
+      "task_id": "T10_constrained_budget",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 10,
+      "model": "moonshot-v1-128k"
     }
   ],
-  "tasks_reported": 8,
-  "task_scope": "T1-T8",
-  "missing_tasks": [
-    "T9_adaptive_adversary",
-    "T10_constrained_budget"
-  ],
-  "average_score": 94.4,
-  "average_reward": 0.9435,
-  "baseline_comparison_scope": "shared_tasks_only",
-  "model": "moonshot-v1-8k",
+  "tasks_reported": 10,
+  "task_scope": "T1-T10",
+  "average_score": 95.1,
+  "average_reward": 0.951,
+  "baseline_comparison_scope": "all_tasks",
+  "baseline_delta": -1.7,
+  "model": "moonshot-v1",
+  "model_context_notes": "T1-T8 evaluated under moonshot-v1-8k; T9 and T10 require a larger context window due to longer episodes (T9 mid-episode escalation, T10 budget-aware rollouts) and were evaluated under moonshot-v1-128k. Both are the same Kimi (Moonshot) model family at temperature 0.0.",
   "agent": "ComtradeAgent"
 }

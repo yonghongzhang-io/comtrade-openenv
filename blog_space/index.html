@@ -309,8 +309,8 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
       </table>
     </div>
 
-    <h3>LLM agent — Moonshot V1-8K (Kimi API)</h3>
-    <p>The published Kimi snapshot currently covers the shared T1-T8 subset. T9 and T10 remain baseline-only in this release.</p>
+    <h3>LLM agent — Kimi / Moonshot V1 (full T1-T10 coverage)</h3>
+    <p>T1-T8 were evaluated under <code>moonshot-v1-8k</code>. T9 and T10 required a larger context window due to longer episodes (mid-episode fault escalation and budget-aware rollouts) and were evaluated under <code>moonshot-v1-128k</code>. Both are the same Kimi / Moonshot V1 family at <code>temperature=0.0</code>.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Task</th><th>Score</th><th>Reward</th></tr></thead>
@@ -323,15 +323,17 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
           <tr><td>T6 Page drift</td><td class="num">94.7</td><td class="num">0.947</td></tr>
           <tr><td>T7 Totals trap</td><td class="num">98.7</td><td class="num">0.987</td></tr>
           <tr><td>T8 Mixed faults</td><td class="num">97.3</td><td class="num">0.973</td></tr>
-          <tr class="avg-row"><td><strong>Average (shared T1-T8 scope)</strong></td><td class="num"><strong>94.4</strong></td><td class="num"><strong>0.944</strong></td></tr>
+          <tr><td>T9 Adaptive adversary</td><td class="num">97.5</td><td class="num">0.975</td></tr>
+          <tr><td>T10 Constrained budget</td><td class="num">98.7</td><td class="num">0.987</td></tr>
+          <tr class="avg-row"><td><strong>Average (T1-T10)</strong></td><td class="num"><strong>95.1</strong></td><td class="num"><strong>0.951</strong></td></tr>
         </tbody>
       </table>
     </div>
-    <p>The LLM outperforms the rule-based baseline on Observability — natural language models generate more informative execution traces. The gap on T4/T5 reflects that the Robustness dimension requires <strong>explicit logged evidence</strong> of retry behavior, not just correct output.</p>
+    <p>The LLM matches or slightly exceeds the rule-based baseline on <strong>8 of 10 tasks</strong>, including the two novel hard tasks T9 (adaptive adversary) and T10 (constrained budget). Relative to the baseline (96.8 avg across the same 10 tasks), the LLM lands at <strong>95.1 (−1.7 pts)</strong> — the remaining gap is concentrated in T4/T5, where the Robustness dimension penalizes silent retries rather than correctness gaps.</p>
 
     <figure>
       <img src="benchmark_results.png" alt="ComtradeBench benchmark results"/>
-      <figcaption>Rule-based baseline vs. Kimi LLM agent across T1-T8.</figcaption>
+      <figcaption>Rule-based baseline vs. Kimi LLM agent across the 10-task suite.</figcaption>
     </figure>
 
     <h3>Why prompt design matters for T4/T5</h3>
