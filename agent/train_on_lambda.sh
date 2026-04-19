@@ -1,6 +1,8 @@
 #!/bin/bash
 # ============================================================================
-# Lambda Labs GRPO training runbook — Qwen2.5-3B on H100 80GB
+# Lambda Labs GRPO training runbook — Qwen2.5-1.5B on A100 40GB
+# (Default model chosen for A100 40GB compatibility. Override with
+#  TRAIN_MODEL=Qwen/Qwen2.5-3B-Instruct if you have 80GB GPU.)
 # ============================================================================
 #
 # Prerequisite on Lambda instance (H100 80GB recommended):
@@ -52,7 +54,7 @@ pip install --quiet \
 pip install --quiet -e .
 
 # --- 2. Training config -----------------------------------------------------
-MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-3B-Instruct}"
+MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 ITERS="${TRAIN_ITERS:-50}"
 BATCH="${TRAIN_BATCH:-4}"
 GROUP="${TRAIN_GROUP:-4}"
