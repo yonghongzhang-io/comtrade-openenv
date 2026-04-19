@@ -6,3 +6,14 @@ grpo_output/
 .DS_Store
 .claude/
 submission_package.md
+
+# Secrets — never commit
+.env
+.env.*
+*.env
+
+# Private Kimi probe outputs
+kimi_t9_t10_*.json
+
+# Submission staging materials (team member PII)
+submission/
