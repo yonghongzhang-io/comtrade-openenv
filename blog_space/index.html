@@ -336,19 +336,23 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
       <figcaption>Rule-based baseline vs. Kimi LLM agent across the 10-task suite.</figcaption>
     </figure>
 
-    <h3>Cross-model comparison — T9 is genuinely discriminative</h3>
-    <p>Adding a second LLM, <strong>Llama 3.3 70B</strong> (Groq), on the same 10 tasks, same agent loop, same prompt, same seed:</p>
+    <h3>Cross-model comparison — frontier saturation + frontier/sub-frontier separation</h3>
+    <p>Three LLMs, same agent loop, same default prompt, same seed (42):</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Model</th><th>T1-T8 avg</th><th>T9 score</th><th>T10 score</th><th>T1-T10 avg</th></tr></thead>
         <tbody>
           <tr><td>Rule-based baseline</td><td class="num">96.5</td><td class="num">96.9</td><td class="num">98.0</td><td class="num">96.8</td></tr>
-          <tr><td>Kimi Moonshot V1-128k</td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong></td><td class="num">98.7</td><td class="num"><strong>97.5</strong></td></tr>
+          <tr><td>Kimi Moonshot V1-128k</td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong></td><td class="num"><strong>98.7</strong></td><td class="num"><strong>97.5</strong></td></tr>
+          <tr><td>Claude Sonnet 4.6</td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong></td><td class="num"><strong>98.7</strong></td><td class="num"><strong>97.5</strong></td></tr>
           <tr><td>Llama 3.3 70B</td><td class="num"><strong>97.4</strong></td><td class="num" style="color:#f87171"><strong>18.7</strong></td><td class="num">95.7</td><td class="num">89.3</td></tr>
         </tbody>
       </table>
     </div>
-    <p>Two frontier-class LLMs perform <strong>essentially identically on T1-T8</strong> (97.4 each) but diverge catastrophically on T9: a <strong>78.8-point gap</strong> on the same task with the same prompt. Llama handles static faults (retries, dedup, totals traps) but fails on <strong>within-episode fault escalation</strong> — the core property T9 was designed to measure. This validates T9 as a genuine stress test rather than a cosmetic hard task.</p>
+    <p><strong>Two findings.</strong></p>
+    <p><strong>1. Frontier models collapse into a single point.</strong> Kimi and Claude produce <em>numerically identical</em> per-task scores across all 10 tasks — not close, identical. This is not a measurement fluke: the environment is seeded, the judge is deterministic, and both frontier-class models solve each task the same way. Same outcome → same score. The residual 2.5-pts-per-task gap below perfect is a judge sub-criterion ceiling (Robustness capped at 12/15 on T4/T5, Observability ~8.67/10), not a model capability gap.</p>
+    <p><strong>2. Frontier vs. sub-frontier is sharp.</strong> Llama matches both frontier models perfectly on T1-T8 (97.4) but collapses on T9 to <strong>18.7</strong> — a <strong>78.8-point gap</strong> on the same task with the same prompt. Llama handles static faults (retries, dedup, totals traps) but fails on within-episode fault escalation, precisely what T9 was designed to measure.</p>
+    <p>ComtradeBench currently measures execution reliability with sharp discrimination between frontier and sub-frontier models, but does not yet fine-grained-rank frontier models against each other. A harder T9 variant would push the ceiling down — noted in Limitations.</p>
 
     <h3>Ablation — context window dominates prompt engineering</h3>
     <p>We originally claimed the T4/T5 Robustness gap could be closed with an explicit <strong>EVENTS scratchpad</strong> prompt pattern. The data told a different story. Three conditions on Kimi, same model family, same agent loop, same seed:</p>

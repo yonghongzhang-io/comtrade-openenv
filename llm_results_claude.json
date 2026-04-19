@@ -1,0 +1,157 @@
+{
+  "results": [
+    {
+      "task_id": "T1_single_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 3
+    },
+    {
+      "task_id": "T2_multi_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 7
+    },
+    {
+      "task_id": "T3_duplicates",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T4_rate_limit_429",
+      "reward": 0.957,
+      "score": 95.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T5_server_error_500",
+      "reward": 0.963,
+      "score": 96.3,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 9.34
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T6_page_drift",
+      "reward": 0.947,
+      "score": 94.7,
+      "breakdown": {
+        "correctness": 26.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T7_totals_trap",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T8_mixed_faults",
+      "reward": 0.973,
+      "score": 97.3,
+      "breakdown": {
+        "correctness": 28.6,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 5
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.975,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 7
+    },
+    {
+      "task_id": "T10_constrained_budget",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "steps": 10
+    }
+  ],
+  "tasks_reported": 10,
+  "task_scope": "T1-T10",
+  "average_score": 97.5,
+  "average_reward": 0.9752,
+  "baseline_comparison_scope": "all_tasks",
+  "baseline_delta": 0.7,
+  "beats_baseline_on_tasks": 10,
+  "model": "claude-sonnet-4-6",
+  "model_family": "Anthropic Claude Sonnet 4.6",
+  "agent": "ComtradeAgent",
+  "temperature": 0.0,
+  "seed": 42,
+  "notes": "Claude Sonnet 4.6 run under same conditions as Kimi-128k. Per-task scores are numerically identical to Kimi-128k across all 10 tasks (same breakdown, same total). This is not a bug — it reflects the deterministic seeded environment + deterministic judge: two capable models that solve the task correctly produce identical outcomes, so they receive identical scores. The residual 2.5-pt-per-task gap below 100 is a judge sub-criterion ceiling (Robustness capped at 12/15 on T4/T5, Observability capped at ~8.67/10). Finding: ComtradeBench currently has strong *binary* discriminative power (frontier vs sub-frontier: Kimi/Claude 97.5 vs Llama 89.3) but NOT fine-grained discriminative power *among* frontier models. A harder T9 variant with steeper mid-episode escalation would push the ceiling down (see Limitations)."
+}

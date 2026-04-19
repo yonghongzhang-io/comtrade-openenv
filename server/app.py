@@ -272,10 +272,10 @@ LANDING_HTML = """<!DOCTYPE html>
         Rule-based baseline: <strong>96.8 / 100</strong> across T1-T10.
       </p>
       <p style="font-size:.82rem; color:var(--muted); line-height:1.7;">
-        Kimi V1-128k: <strong style="color:var(--text)">97.5 / 100</strong> (+0.7), beats baseline
-        on all 10 tasks. Llama 3.3 70B: 89.3, collapses on T9 (<strong style="color:#f87171">18.7</strong>)
-        &mdash; <strong style="color:var(--text)">T9 produces a 78.8-pt discriminative gap</strong>
-        between models.
+        Kimi V1-128k &amp; Claude Sonnet 4.6: <strong style="color:var(--text)">97.5 / 100</strong>
+        each (+0.7), identical per-task scores on all 10 tasks &mdash; frontier saturation. Llama 3.3 70B
+        collapses on T9 to <strong style="color:#f87171">18.7</strong>: <strong style="color:var(--text)">T9
+        produces a 78.8-pt frontier vs. sub-frontier gap</strong>.
       </p>
     </div>
 

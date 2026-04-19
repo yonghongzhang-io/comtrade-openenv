@@ -1,11 +1,11 @@
 """
 plot_benchmark.py — regenerate benchmark_results.png from the canonical
 result JSON files (inference_results_baseline.json, llm_results_kimi.json,
-llm_results_llama.json).
+llm_results_claude.json, llm_results_llama.json).
 
-Produces a 3-bar-per-task chart (Baseline / Kimi-128k / Llama-3.3-70B) with
-T9 and T10 highlighted as novel tasks and a visual emphasis on the T9
-cross-model gap.
+Produces a 4-bar-per-task chart (Baseline / Kimi-128k / Claude Sonnet 4.6 /
+Llama-3.3-70B) with T9 and T10 highlighted as novel tasks and a visual
+emphasis on the T9 cross-model gap.
 
 Usage:
   python agent/plot_benchmark.py
@@ -48,6 +48,7 @@ def main() -> None:
     root = Path(__file__).resolve().parent.parent
     baseline = load_scores(root / "inference_results_baseline.json")
     kimi = load_scores(root / "llm_results_kimi.json")
+    claude = load_scores(root / "llm_results_claude.json")
     llama = load_scores(root / "llm_results_llama.json")
 
     task_order = list(TASK_DISPLAY.keys())
@@ -55,10 +56,12 @@ def main() -> None:
 
     baseline_scores = [baseline[t] for t in task_order]
     kimi_scores = [kimi[t] for t in task_order]
+    claude_scores = [claude[t] for t in task_order]
     llama_scores = [llama[t] for t in task_order]
 
     baseline_avg = sum(baseline_scores) / len(baseline_scores)
     kimi_avg = sum(kimi_scores) / len(kimi_scores)
+    claude_avg = sum(claude_scores) / len(claude_scores)
     llama_avg = sum(llama_scores) / len(llama_scores)
 
     # Theme — match the dark palette used on the landing page and blog
@@ -66,55 +69,62 @@ def main() -> None:
     surface = "#1e293b"
     text_color = "#e2e8f0"
     muted = "#94a3b8"
-    color_baseline = "#818cf8"  # indigo
-    color_kimi = "#4ade80"       # green
-    color_llama = "#f87171"      # red
+    color_baseline = "#818cf8"   # indigo
+    color_kimi = "#4ade80"        # green
+    color_claude = "#fbbf24"      # amber
+    color_llama = "#f87171"       # red
     novel_shade = "#334155"
 
-    fig, ax = plt.subplots(figsize=(14, 6.5), facecolor=bg)
+    fig, ax = plt.subplots(figsize=(16, 7), facecolor=bg)
     ax.set_facecolor(bg)
 
     x = list(range(len(task_order)))
-    width = 0.27
+    width = 0.20
 
     # Novel-task background shading (T9, T10)
     for i, t in enumerate(task_order):
         if t in NOVEL_TASKS:
             ax.axvspan(i - 0.5, i + 0.5, color=novel_shade, alpha=0.35, zorder=0)
 
-    # Bars
-    bars_b = ax.bar([xi - width for xi in x], baseline_scores, width,
+    # 4 bars per task
+    bars_b = ax.bar([xi - 1.5 * width for xi in x], baseline_scores, width,
                     label=f"Rule-Based Baseline (avg {baseline_avg:.1f})",
                     color=color_baseline, edgecolor=bg, linewidth=0.5, zorder=3)
-    bars_k = ax.bar(x, kimi_scores, width,
+    bars_k = ax.bar([xi - 0.5 * width for xi in x], kimi_scores, width,
                     label=f"Kimi Moonshot V1-128k (avg {kimi_avg:.1f})",
                     color=color_kimi, edgecolor=bg, linewidth=0.5, zorder=3)
-    bars_l = ax.bar([xi + width for xi in x], llama_scores, width,
+    bars_c = ax.bar([xi + 0.5 * width for xi in x], claude_scores, width,
+                    label=f"Claude Sonnet 4.6 (avg {claude_avg:.1f})",
+                    color=color_claude, edgecolor=bg, linewidth=0.5, zorder=3)
+    bars_l = ax.bar([xi + 1.5 * width for xi in x], llama_scores, width,
                     label=f"Llama 3.3 70B (avg {llama_avg:.1f})",
                     color=color_llama, edgecolor=bg, linewidth=0.5, zorder=3)
 
-    # Value labels on top of each bar
-    def label_bars(bars, values, color):
+    # Value labels on top of each bar (smaller + alternating height to avoid overlap)
+    def label_bars(bars, values, color, offset=1.2):
         for bar, v in zip(bars, values):
             ax.text(bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 1.2,
+                    bar.get_height() + offset,
                     f"{v:.1f}", ha="center", va="bottom",
-                    fontsize=8.5, color=color, fontweight="bold", zorder=4)
+                    fontsize=7.5, color=color, fontweight="bold", zorder=4)
 
     label_bars(bars_b, baseline_scores, color_baseline)
     label_bars(bars_k, kimi_scores, color_kimi)
+    label_bars(bars_c, claude_scores, color_claude)
     label_bars(bars_l, llama_scores, color_llama)
 
     # Baseline reference line
     ax.axhline(baseline_avg, color=color_baseline, linestyle="--",
                linewidth=1, alpha=0.45, zorder=1)
 
-    # Callout arrow for T9 discriminative gap
+    # Callout for T9 cross-model gap (Kimi/Claude vs Llama)
     t9_idx = task_order.index("T9_adaptive_adversary")
-    gap_text = f"T9 cross-model gap\nKimi {kimi_scores[t9_idx]:.1f}  vs  Llama {llama_scores[t9_idx]:.1f}\n→ {kimi_scores[t9_idx] - llama_scores[t9_idx]:.1f} pts"
+    gap_text = (f"T9 frontier-vs-sub-frontier gap\n"
+                f"Kimi / Claude {kimi_scores[t9_idx]:.1f}  vs  Llama {llama_scores[t9_idx]:.1f}\n"
+                f"→ {kimi_scores[t9_idx] - llama_scores[t9_idx]:.1f} pts")
     ax.annotate(gap_text,
-                xy=(t9_idx + width, llama_scores[t9_idx] + 2),
-                xytext=(t9_idx - 1.8, 45),
+                xy=(t9_idx + 1.5 * width, llama_scores[t9_idx] + 2),
+                xytext=(t9_idx - 2.3, 45),
                 fontsize=9, color=text_color, fontweight="bold",
                 ha="left", va="center",
                 bbox=dict(boxstyle="round,pad=0.45", facecolor=surface,
@@ -122,16 +132,16 @@ def main() -> None:
                 arrowprops=dict(arrowstyle="->", color=muted, lw=1.2,
                                 connectionstyle="arc3,rad=-0.15"))
 
-    # Novel marker text
-    ax.text(task_order.index("T9_adaptive_adversary"), 12,
-            "★ Novel tasks", ha="center", va="bottom",
+    # Novel marker text (put below the chart area to avoid bar overlap)
+    ax.text(task_order.index("T10_constrained_budget") - 0.5, -6,
+            "★ Novel tasks (shaded)", ha="center", va="top",
             fontsize=9, color=muted, style="italic")
 
     # Chart chrome
     ax.set_title("ComtradeBench — Cross-model Results on the 10-Task Suite",
                  fontsize=14, color=text_color, fontweight="bold", pad=16)
     ax.set_ylabel("Score (0-100)", color=text_color, fontsize=11)
-    ax.set_ylim(0, 108)
+    ax.set_ylim(-10, 108)
     ax.set_xticks(x)
     ax.set_xticklabels(xlabels, color=text_color, fontsize=9.5)
     ax.tick_params(axis="y", colors=text_color)
@@ -151,8 +161,8 @@ def main() -> None:
 
     # Footer caption
     fig.text(0.5, 0.015,
-             "T9 (adaptive adversary) and T10 (constrained budget) are novel tasks; "
-             "T9 produces the sharpest discriminative signal between models.",
+             "Kimi and Claude are numerically indistinguishable at the top (both 97.5). "
+             "T9 discriminates frontier from sub-frontier (Llama collapses to 18.7).",
              ha="center", fontsize=9, color=muted, style="italic")
 
     plt.tight_layout(rect=(0, 0.03, 1, 1))

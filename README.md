@@ -58,14 +58,16 @@ multi-dimensional scoring reward correct execution, not fluent output.
 
 | Agent | Avg (T1-T10) | Beats baseline on | T9 score | Notes |
 |---|---:|:---:|---:|---|
-| Rule-based baseline | **96.8 / 100** | reference | 96.9 | deterministic, no LLM |
-| **Kimi / Moonshot V1 (128k)** | **97.5 / 100** | **10 of 10** | **97.5** | same model on all 10 tasks, apples-to-apples |
-| Llama 3.3 70B (Groq) | 89.3 / 100 | 0 of 10 | **18.7** | matches Kimi on T1-T8 but collapses on T9 |
-| GRPO (reward-only, Qwen2.5-7B) | see curve | — | — | beat rule-based baseline mean in 6 of 8 training iterations |
+| Rule-based baseline | 96.8 / 100 | reference | 96.9 | deterministic, no LLM |
+| **Kimi / Moonshot V1 (128k)** | **97.5 / 100** | **10 of 10** | **97.5** | apples-to-apples across all 10 tasks |
+| **Claude Sonnet 4.6** | **97.5 / 100** | **10 of 10** | **97.5** | identical per-task scores to Kimi — frontier models indistinguishable |
+| Llama 3.3 70B (Groq) | 89.3 / 100 | 0 of 10 | **18.7** | matches frontier on T1-T8 but collapses on T9 |
+| GRPO (reward-only, Qwen2.5-7B) | see curve | — | — | rollout validation (8 iters); not a full training study — see Limitations |
 
-**T9 (adaptive adversary)** produces the sharpest discriminative signal in the benchmark:
-Kimi 97.5 vs Llama 18.7 — a **78.8-point gap** on the same task with the same prompt and agent loop.
-This validates T9 as a genuine stress test rather than a cosmetic hard task.
+**The benchmark produces two clean discriminative signals:**
+
+1. **Frontier vs. sub-frontier separation**: Kimi / Claude both score 97.5 on T9, Llama collapses to 18.7 — a **78.8-point gap** on within-episode fault escalation. This is the sharpest single signal.
+2. **Frontier saturation at the top**: Kimi-128k and Claude-Sonnet-4.6 produce *numerically identical* per-task scores across all 10 tasks. Two independently trained frontier models from different vendors converge to the same outcome when the judge is deterministic and the tasks are solvable. This tells us the benchmark currently measures *execution reliability* well, but does not yet fine-grained rank frontier-class models against each other (see Limitations).
 
 The same environment code runs in-process during GRPO rollouts and as a deployed Docker service
 during eval, with zero divergence. Context-vs-prompt ablation on T4/T5 is in the Results section below.
@@ -293,19 +295,22 @@ Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks*
 gap on T4/T5 Robustness (12/15, not 15/15) is a scoring sub-criterion explored in the ablation
 below, not a silent-retry failure.
 
-### Cross-model comparison — T9 is genuinely discriminative
+### Cross-model comparison — T9 discriminates frontier from sub-frontier
 
 | Model | Avg (T1-T10) | T1-T8 avg | T9 score | T10 score |
 |---|---:|---:|---:|---:|
 | Rule-based baseline | 96.8 | 96.5 | 96.9 | 98.0 |
 | Kimi Moonshot V1-128k | **97.5** | **97.4** | **97.5** | **98.7** |
+| Claude Sonnet 4.6 | **97.5** | **97.4** | **97.5** | **98.7** |
 | Llama 3.3 70B (Groq) | 89.3 | 97.4 | **18.7** | 95.7 |
 
-Two frontier-class LLMs perform nearly identically on T1-T8 (97.4 each) but diverge catastrophically
-on T9: Kimi scores 97.5, Llama scores 18.7 — a **78.8-point gap on the same task**. Llama handles
-static faults (429/500/duplicates/drift) but fails on within-episode fault escalation. This is the
-first empirical confirmation that **T9 produces meaningful separation between models**, not just
-harder numbers on the same axis. Full per-task breakdown in `llm_results_llama.json`.
+**Two findings from running three models:**
+
+1. **Frontier models collapse into a single point.** Kimi-128k and Claude Sonnet 4.6 produce *numerically identical* per-task scores (98.7 / 98.7 / 98.7 / 95.7 / 96.3 / 94.7 / 98.7 / 97.3 / 97.5 / 98.7). This is not a bug: the environment is seeded, the judge is deterministic, and both frontier models solve each task the same way — same outcome, same score. The residual 2.5-pts-per-task gap below perfect is a judge sub-criterion ceiling (Robustness capped at 12/15 on T4/T5, Observability capped at ~8.67/10), not a model capability gap.
+
+2. **Frontier vs. sub-frontier signal is sharp.** Llama 3.3 70B matches both frontier models on T1-T8 (97.4) but collapses on T9 to 18.7 — a **78.8-point gap on the same task with the same prompt**. Llama handles static faults (429/500/duplicates/drift) but fails on within-episode fault escalation. This is the first empirical confirmation that **T9 produces meaningful separation**, not just harder numbers on the same axis.
+
+**Implication**: ComtradeBench currently has strong *binary* discriminative power (frontier vs. sub-frontier). It does not yet fine-grained-rank frontier models against each other — a harder T9 variant with steeper mid-episode escalation would push the ceiling down (see Limitations). Full per-task breakdowns in `llm_results_kimi.json`, `llm_results_claude.json`, `llm_results_llama.json`.
 
 ### Ablation — does context or prompt engineering drive T4/T5 Robustness?
 
@@ -361,15 +366,17 @@ around them by rephrasing.
 
 These are the specific things this release does not yet do:
 
-- **T9 calibration is one-sided.** T9 sharply separates Llama from Kimi, but does not yet produce
-  fine-grained separation among frontier models (Kimi and the rule-based baseline both clear ~97).
-  A harder T9 variant with steeper mid-episode escalation would differentiate strong models further.
+- **T9 calibration is one-sided.** T9 sharply separates frontier models from sub-frontier (Kimi /
+  Claude both 97.5 vs. Llama 18.7 — a 78.8-pt gap), but does *not* separate frontier models from
+  each other: Kimi-128k and Claude Sonnet 4.6 produce numerically identical scores across all 10
+  tasks. A harder T9 variant with steeper mid-episode escalation would push the ceiling down.
 - **T4/T5 Robustness ceiling at 12/15.** Neither a larger context nor an explicit EVENTS prompt
   pushes past 12 on retry-heavy tasks. The remaining 3 points correspond to a retry-count or
   retry-timing fidelity sub-check we have not yet fully diagnosed; future work is to make that
   sub-criterion explicit in the judge.
-- **Two LLMs evaluated.** Kimi (Moonshot V1-128k) and Llama 3.3 70B. Adding GPT-4o, Claude 4.6
-  Sonnet, and Qwen2.5-72B would strengthen the cross-model story.
+- **Three LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, and Llama 3.3 70B. Adding
+  GPT-4o and Qwen2.5-72B would broaden the cross-model story further, though the current data
+  already shows saturation at the frontier.
 - **GRPO training at PoC scale only.** 8 iterations is a sanity-check run, not a full training
   study. Extending to 50-200 iterations on a held-out task split (e.g. T1-T8 train, T9-T10 test)
   would convert the pipeline from "plumbing" to "experiment."
