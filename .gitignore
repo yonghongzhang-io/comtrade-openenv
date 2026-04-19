@@ -11,6 +11,7 @@ submission_package.md
 .env
 .env.*
 *.env
+!.env.example
 
 # Private Kimi probe outputs
 kimi_t9_t10_*.json

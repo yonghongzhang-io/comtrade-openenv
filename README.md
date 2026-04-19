@@ -167,6 +167,19 @@ submit_results(data_jsonl, metadata_json, run_log)  → {reward, score, breakdow
 
 ## Quick Start
 
+> **Note.** All commands below assume you `cd comtrade_env` first — several scripts import
+> `models` / `server` by relative path, so the current working directory must be the repo root
+> (or you must export `PYTHONPATH=$(pwd)`).
+
+### 0. Environment variables (only needed for LLM eval / training)
+
+```bash
+cd comtrade_env
+cp .env.example .env
+# Edit .env and paste whichever provider key you want (Kimi / Anthropic / Groq / Nebius).
+# Smoke tests and the rule-based baseline do NOT need any API keys.
+```
+
 ### 1. Smoke Test (no LLM required)
 
 ```bash
@@ -218,7 +231,59 @@ python agent/train_grpo.py \
 
 No external OpenEnv server is needed — `InProcessEnvClient` runs the environment in-process.
 
-### 4. Run the OpenEnv Server (Docker)
+### 4. Reproducing the published LLM results
+
+The three canonical LLM result files (`llm_results_kimi.json`, `llm_results_claude.json`,
+`llm_results_llama.json`) were produced by `agent/run_eval.py` against the same 10-task suite,
+`temperature=0.0`, `seed=42`. To regenerate them on your own keys:
+
+```bash
+cd comtrade_env
+cp .env.example .env   # fill in the relevant key (see §0)
+
+# Kimi Moonshot V1-128k (international endpoint shown; swap to .cn for China)
+python agent/run_eval.py \
+    --api-url https://api.moonshot.ai/v1 \
+    --api-model moonshot-v1-128k \
+    --env-key KIMI_API_KEY \
+    --label kimi_128k_apples --all
+
+# Claude Sonnet 4.6
+python agent/run_eval.py \
+    --api-url https://api.anthropic.com/v1 \
+    --api-model claude-sonnet-4-6 \
+    --env-key ANTHROPIC_API_KEY \
+    --label claude_sonnet_4_6 --all
+
+# Llama 3.3 70B via Groq
+python agent/run_eval.py \
+    --api-url https://api.groq.com/openai/v1 \
+    --api-model llama-3.3-70b-versatile \
+    --env-key GROQ_API_KEY \
+    --label llama3_3_70b --all
+
+# Ablation condition C (context=128k + EVENTS scratchpad prompt)
+python agent/run_eval.py \
+    --api-url https://api.moonshot.ai/v1 \
+    --api-model moonshot-v1-128k \
+    --env-key KIMI_API_KEY \
+    --label kimi_ablation_events_enhanced \
+    --prompt-file agent/prompts/enhanced_events.txt \
+    --tasks T4_rate_limit_429 T5_server_error_500
+```
+
+Each run writes a timestamped `eval_<label>_<timestamp>.json` in the repo root. The committed
+`llm_results_*.json` files are *frozen snapshots* of the runs used for the submission; exact
+bit-level reproduction requires the same provider endpoints and model versions available on
+2026-04-19. The ablation JSON is fully reproducible from the commands above.
+
+To regenerate `benchmark_results.png` after a new run:
+
+```bash
+python agent/plot_benchmark.py
+```
+
+### 5. Run the OpenEnv Server (Docker)
 
 ```bash
 cd comtrade_env
@@ -226,7 +291,7 @@ docker build -t comtrade-env:latest -f server/Dockerfile .
 docker run -p 8000:8000 comtrade-env:latest
 ```
 
-### 5. Deploy to Hugging Face Spaces
+### 6. Deploy to Hugging Face Spaces
 
 ```bash
 # Auto-uploads README, Dockerfile, server/, green/, blog, images, results JSONs.
