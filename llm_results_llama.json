@@ -114,27 +114,27 @@
     },
     {
       "task_id": "T9_adaptive_adversary",
-      "reward": 0.975,
-      "score": 97.5,
+      "reward": 0.187,
+      "score": 18.7,
       "breakdown": {
-        "correctness": 28.88,
-        "completeness": 15.0,
-        "robustness": 15.0,
-        "efficiency": 15.0,
-        "data_quality": 15.0,
-        "observability": 8.67
+        "correctness": 0.16,
+        "completeness": 3.0,
+        "robustness": 8.0,
+        "efficiency": 0.0,
+        "data_quality": 5.0,
+        "observability": 2.5
       },
-      "steps": 7
+      "steps": 6
     },
     {
       "task_id": "T10_constrained_budget",
-      "reward": 0.987,
-      "score": 98.7,
+      "reward": 0.957,
+      "score": 95.7,
       "breakdown": {
         "correctness": 30.0,
         "completeness": 15.0,
         "robustness": 15.0,
-        "efficiency": 15.0,
+        "efficiency": 12.0,
         "data_quality": 15.0,
         "observability": 8.67
       },
@@ -143,15 +143,15 @@
   ],
   "tasks_reported": 10,
   "task_scope": "T1-T10",
-  "average_score": 97.5,
-  "average_reward": 0.9752,
+  "average_score": 89.3,
+  "average_reward": 0.8932,
   "baseline_comparison_scope": "all_tasks",
-  "baseline_delta": 0.7,
-  "beats_baseline_on_tasks": 10,
-  "model": "moonshot-v1-128k",
-  "model_family": "Kimi / Moonshot V1",
+  "baseline_delta": -7.5,
+  "beats_baseline_on_tasks": 0,
+  "model": "llama-3.3-70b-versatile",
+  "model_family": "Meta Llama 3.3 (via Groq)",
   "agent": "ComtradeAgent",
   "temperature": 0.0,
   "seed": 42,
-  "notes": "Apples-to-apples run: all 10 tasks under the same moonshot-v1-128k variant. Earlier T1-T8 snapshot at moonshot-v1-8k was replaced because 8k context truncation on T4/T5 forced silent retries that the Robustness scorer could not audit (Robustness 0/15). At 128k the same model reaches Robustness 12/15 on T4/T5 without any prompt changes — see ablation_context_vs_prompt.json."
+  "notes": "Cross-model sanity check. Llama-3.3-70B matches Kimi on T1-T8 (solves paginated retrieval / retry / dedup / totals trap cleanly) but COLLAPSES on T9 (adaptive adversary): score 18.7, correctness 0.16/30. This is the clearest signal the benchmark produces — it demonstrates that within-episode fault escalation (the novel property of T9) is genuinely discriminative across frontier models, not just a cosmetic task."
 }

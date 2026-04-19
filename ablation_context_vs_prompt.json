@@ -1,0 +1,50 @@
+{
+  "ablation_id": "context_vs_prompt_t4_t5",
+  "question": "On the retry-heavy tasks T4 (HTTP 429) and T5 (HTTP 500), does the Robustness score depend more on (a) context window size, or (b) an explicit EVENTS scratchpad prompt instruction?",
+  "tasks": ["T4_rate_limit_429", "T5_server_error_500"],
+  "fixed": {
+    "agent": "ComtradeAgent",
+    "temperature": 0.0,
+    "seed": 42,
+    "model_family": "Kimi / Moonshot V1"
+  },
+  "conditions": [
+    {
+      "name": "A: 8k context, default prompt",
+      "model": "moonshot-v1-8k",
+      "prompt_variant": "default (no EVENTS scratchpad instruction)",
+      "results": {
+        "T4_rate_limit_429": {"score": 83.7, "robustness": 0.0},
+        "T5_server_error_500": {"score": 84.3, "robustness": 0.0}
+      },
+      "note": "Silent retries: the agent retries mechanically but the retry events never appear in run_log, so the Robustness sub-scorer cannot verify fault handling. 8k context is truncated before the narration lands."
+    },
+    {
+      "name": "B: 128k context, default prompt",
+      "model": "moonshot-v1-128k",
+      "prompt_variant": "default (no EVENTS scratchpad instruction)",
+      "results": {
+        "T4_rate_limit_429": {"score": 95.7, "robustness": 12.0},
+        "T5_server_error_500": {"score": 96.3, "robustness": 12.0}
+      },
+      "note": "Same prompt, same model family, larger context. Robustness jumps from 0 to 12 because the retry narration now survives context and lands verbatim in run_log. No prompt engineering required."
+    },
+    {
+      "name": "C: 128k context, enhanced EVENTS prompt",
+      "model": "moonshot-v1-128k",
+      "prompt_variant": "enhanced (persistent EVENTS scratchpad + 'log before you retry' framing)",
+      "prompt_file": "agent/prompts/enhanced_events.txt",
+      "results": {
+        "T4_rate_limit_429": {"score": 95.7, "robustness": 12.0},
+        "T5_server_error_500": {"score": 96.3, "robustness": 12.0}
+      },
+      "note": "Adding an explicit EVENTS scratchpad instruction on top of 128k produced ZERO additional improvement on T4/T5. The Robustness ceiling at 12/15 appears to be a sub-criterion the judge applies (e.g. exact retry-count match or timing fidelity) rather than a narration-quality gate."
+    }
+  ],
+  "deltas": {
+    "A_to_B_context_effect": "+12.0 Robustness pts per task (0 -> 12)",
+    "B_to_C_prompt_effect": "0.0 Robustness pts per task (no change)",
+    "verdict": "Context window dominates prompt engineering on this benchmark. Adding explicit scratchpad instructions is neither necessary (8k was the binding constraint, not the prompt) nor sufficient (128k + better prompt does not push past the Robustness ceiling)."
+  },
+  "implication": "For benchmarks with long tool-use trajectories, context-size selection should come BEFORE prompt engineering. A clean way to think about it: if the observation log cannot fit in context, no amount of instruction to 'log carefully' will recover the lost narration. Practitioners optimising agents on ComtradeBench-style tasks should first size the model to the episode length, then invest in prompt engineering only to push above the natural ceiling. The remaining 3/15 gap on T4/T5 Robustness is a structural property of how the judge scores retry events — future work (see Limitations)."
+}

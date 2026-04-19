@@ -221,6 +221,7 @@ class ComtradeAgent:
         max_tokens_per_step: int = 512,
         retry_limit: int = 3,
         temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
     ):
         self.llm = llm
         self.env = env_client
@@ -228,6 +229,7 @@ class ComtradeAgent:
         self.max_tokens_per_step = max_tokens_per_step
         self.retry_limit = retry_limit
         self.temperature = temperature
+        self.system_prompt = system_prompt if system_prompt is not None else SYSTEM_PROMPT
 
     def run_episode(self, task_id: Optional[str] = None, seed: Optional[int] = None) -> Episode:
         """
@@ -246,7 +248,7 @@ class ComtradeAgent:
 
         # Conversation history for multi-turn LLM calls
         messages: list[dict] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": task_desc},
         ]
 

@@ -17,3 +17,4 @@ kimi_t9_t10_*.json
 
 # Submission staging materials (team member PII)
 submission/
+eval_*.json

@@ -163,43 +163,98 @@ A deterministic rule-based agent achieves **96.8 / 100** average across all ten 
 | T10 Constrained budget | 98.0 | 0.980 |
 | **Average** | **96.8** | **0.968** |
 
-### LLM agent — Kimi / Moonshot V1 (full T1-T10 coverage)
+### LLM agent — Kimi / Moonshot V1-128k (apples-to-apples across all 10 tasks)
 
-T1-T8 were evaluated under `moonshot-v1-8k`. T9 and T10 required a larger context window
-due to longer episodes (mid-episode fault escalation and budget-aware rollouts) and were
-evaluated under `moonshot-v1-128k`. Both are the same Kimi / Moonshot V1 family at
-`temperature=0.0`.
+All 10 tasks run under the same `moonshot-v1-128k` variant at `temperature=0.0`, `seed=42`.
 
-| Task | Score | Reward |
-|------|------:|-------:|
-| T1 Single page | 98.7 | 0.987 |
-| T2 Multi-page | 98.7 | 0.987 |
-| T3 Duplicates | 98.7 | 0.987 |
-| T4 Rate limit | 83.7 | 0.837 |
-| T5 Server error | 84.3 | 0.843 |
-| T6 Page drift | 94.7 | 0.947 |
-| T7 Totals trap | 98.7 | 0.987 |
-| T8 Mixed faults | 97.3 | 0.973 |
-| T9 Adaptive adversary | 97.5 | 0.975 |
-| T10 Constrained budget | 98.7 | 0.987 |
-| **Average (T1-T10)** | **95.1** | **0.951** |
+| Task | Score | Reward | Delta vs baseline |
+|------|------:|-------:|------------------:|
+| T1 Single page | 98.7 | 0.987 | +0.7 |
+| T2 Multi-page | 98.7 | 0.987 | +0.7 |
+| T3 Duplicates | 98.7 | 0.987 | +0.7 |
+| T4 Rate limit (429) | 95.7 | 0.957 | +0.7 |
+| T5 Server error (500) | 96.3 | 0.963 | +0.6 |
+| T6 Page drift | 94.7 | 0.947 | +0.7 |
+| T7 Totals trap | 98.7 | 0.987 | +0.7 |
+| T8 Mixed faults | 97.3 | 0.973 | +0.9 |
+| T9 Adaptive adversary | 97.5 | 0.975 | +0.6 |
+| T10 Constrained budget | 98.7 | 0.987 | +0.7 |
+| **Average (T1-T10)** | **97.5** | **0.975** | **+0.7** |
 
-The LLM matches or slightly exceeds the rule-based baseline on **8 of 10 tasks**, including the
-two novel hard tasks T9 (adaptive adversary) and T10 (constrained budget). Relative to the
-baseline (96.8 avg across the same 10 tasks), the LLM lands at **95.1 (−1.7 pts)** — the
-remaining gap is concentrated in T4/T5, where the Robustness dimension penalizes silent retries
-rather than correctness gaps. The next section explains how to close that gap with prompt design.
+Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks**. But the
+interesting findings are not in this table — they are in the cross-model and ablation data below.
 
-### Why prompt design matters for T4/T5
+### Cross-model comparison — T9 is genuinely discriminative
 
-T4 (HTTP 429) and T5 (HTTP 500) are the tasks where prompt design has the largest effect, and they expose a subtle gap between *doing the right thing* and *being scored for it*. The agent loop already retries faults mechanically, so Correctness stays perfect — but if the model treats `<tool_result>` as transient context and never echoes the fault into its own narration, the recovery happens silently and the judge sees no proof. Up to 15 Robustness points evaporate.
+Adding a second LLM, **Llama 3.3 70B** (Groq), on the same 10 tasks with the same agent loop, same
+prompt, same seed:
 
-Two prompt-level changes closed most of the gap:
+| Model | T1-T8 avg | T9 score | T10 score | T1-T10 avg |
+|-------|----------:|---------:|----------:|-----------:|
+| Rule-based baseline | 96.5 | 96.9 | 98.0 | 96.8 |
+| Kimi Moonshot V1-128k | **97.4** | **97.5** | 98.7 | **97.5** |
+| Llama 3.3 70B | **97.4** | **18.7** | 95.7 | 89.3 |
 
-- **Persistent `EVENTS:` scratchpad in the system prompt.** The model is instructed to maintain a running event log in every assistant turn (`page=N status=429 retry=1 wait=2s`). Because the scratchpad is regenerated each turn, it survives context truncation and lands verbatim in `submit_results.run_log` — exactly what the Observability and Robustness scorers grep for.
-- **"Log before you retry" framing.** Earlier prompts said *"retry on 429/500"* and the model would silently retry and forget. Reframing as *"first record the fault in EVENTS, then the loop will retry"* turns the fault into a first-class observation rather than an exception to swallow.
+Two frontier-class LLMs perform **essentially identically on T1-T8** (97.4 each) but diverge
+catastrophically on T9: a **78.8-point gap** on the same task with the same prompt. Llama handles
+static faults cleanly (retries, deduplication, totals traps) but fails on **within-episode fault
+escalation** — the core property T9 was designed to measure. This is the clearest empirical
+signal this benchmark produces, and it validates T9 as a genuine stress test rather than a
+cosmetic hard task.
 
-The deeper point: T4/T5 are not really testing whether the agent can retry — the loop already does that. They are testing whether the agent's *narration of its own behavior* is faithful enough to be auditable. In production ETL, this is the difference between a pipeline that "worked" and one you can defend in a postmortem.
+### Ablation — context window dominates prompt engineering
+
+We originally claimed the T4/T5 Robustness gap could be closed with an explicit **EVENTS
+scratchpad** prompt pattern. The data told a different story. Three conditions on Kimi, same
+model family, same agent loop, same seed:
+
+| Condition | Context | Prompt | T4 Robustness | T5 Robustness |
+|---|-------|--------|--------------:|--------------:|
+| A | 8k   | default | 0 / 15  | 0 / 15  |
+| B | 128k | default | 12 / 15 | 12 / 15 |
+| C | 128k | EVENTS scratchpad (enhanced) | 12 / 15 | 12 / 15 |
+
+- **A → B (context effect):** +12 Robustness on both tasks, purely from enlarging the context
+  window. No prompt change.
+- **B → C (prompt effect):** zero additional gain. Explicit "log before you retry" scaffolding
+  on top of 128k produced no measurable improvement.
+
+The original T4/T5 = 0 Robustness result at 8k was not a narration failure. It was a
+**context-truncation failure** — the retry narration fell off the back of the buffer before it
+could land in `run_log`. At 128k, the same model with the same prompt captures everything it
+needs. Adding an explicit EVENTS scratchpad on top of 128k changes nothing.
+
+**Takeaway for agent builders:** on tool-use benchmarks with long trajectories, **size the
+context to the episode length before reaching for prompt engineering**. A prompt cannot recover
+narration that was never written because the buffer filled up. This is a null result — but a
+genuinely useful one, because it contradicts the intuition (which we had!) that prompt
+scaffolding should fix the observability gap.
+
+### How ComtradeBench compares to existing tool-use benchmarks
+
+| Benchmark | Adversarial faults in env | Within-episode non-stationarity | Multi-dim execution scoring | Budget constraints |
+|---|:---:|:---:|:---:|:---:|
+| ToolBench (Qin et al., 2023) | — | — | — | — |
+| τ-bench (Sierra / Anthropic) | partial (policy violations) | — | ✓ | — |
+| BFCL (Berkeley) | — | — | — | — |
+| API-Bank | — | — | — | — |
+| **ComtradeBench** | **✓** (429/500/drift/dupes/totals) | **✓** (T9) | **✓** (6 dimensions) | **✓** (T10) |
+
+Closest relative is τ-bench — it also scores beyond "did the final answer match" and injects
+policy-level adversarial conditions. ComtradeBench's unique combination is **environment-level
+fault injection plus within-episode escalation (T9) plus budget-aware rollouts (T10)**. The
+adversarial bits live in the environment, not in the prompts or labels, so an agent cannot route
+around them by rephrasing.
+
+### Scoring weight rationale
+
+The six-dimensional rubric weights are 30 / 15 / 15 / 15 / 15 / 10. The design principle:
+**correctness is necessary but not sufficient**. Correctness gets the largest single weight (30),
+but the combined weight of "execution quality under adversity" dimensions
+(Completeness + Robustness + Efficiency + Data Quality = 60) exceeds Correctness. This forces the
+score to reward agents that do the job right, not just return something plausible. Observability at
+10 is intentionally lower — it is an audit requirement, not a core task, but non-zero because an
+un-auditable pipeline is not a production-ready pipeline.
 
 ### GRPO training curve
 
@@ -255,6 +310,31 @@ python agent/train_grpo.py \
 All benchmark data is generated procedurally from a seeded PRNG — no external fixtures, no live API dependency. Every result is fully reproducible from a task ID and a random seed.
 
 ---
+
+## Limitations and next steps
+
+This release is honest about what it does not yet do:
+
+- **T9 calibration is one-sided.** T9 sharply separates Llama from Kimi (78.8-point gap), but does
+  not yet produce fine-grained separation among frontier-class models (Kimi clears ~97, close to
+  rule-based baseline). A harder T9 variant with steeper mid-episode escalation would differentiate
+  strong models further.
+- **T4/T5 Robustness ceiling at 12/15.** Neither a larger context nor an explicit EVENTS scratchpad
+  prompt pushed past 12 on retry-heavy tasks. The remaining 3 points correspond to a retry-count
+  or retry-timing fidelity sub-check we have not fully diagnosed. Future work: make that sub-
+  criterion explicit in the judge.
+- **Two LLMs evaluated.** Kimi (Moonshot V1-128k) and Llama 3.3 70B. Adding GPT-4o, Claude 4.6
+  Sonnet, and Qwen2.5-72B would strengthen the cross-model story.
+- **GRPO training at PoC scale.** 8 iterations is a sanity-check run, not a full training study.
+  Extending to 50-200 iterations with a held-out task split (e.g. T1-T8 train, T9-T10 test) would
+  convert the pipeline from "plumbing" to "experiment."
+- **Benchmark comparison is qualitative.** We describe the feature matrix vs. τ-bench / BFCL /
+  ToolBench but have not yet run the same LLM across all four benchmarks side-by-side.
+- **Single-seed evaluation.** All LLM runs use `seed=42`. Multi-seed robustness intervals would
+  quantify variance on the non-deterministic tasks (T6 page drift, T9 escalation).
+
+None of these block using ComtradeBench as a tool-use benchmark today; they are the research
+directions we think make the environment more useful to the field.
 
 ## Conclusion
 

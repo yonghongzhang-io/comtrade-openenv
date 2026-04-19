@@ -309,32 +309,83 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
       </table>
     </div>
 
-    <h3>LLM agent — Kimi / Moonshot V1 (full T1-T10 coverage)</h3>
-    <p>T1-T8 were evaluated under <code>moonshot-v1-8k</code>. T9 and T10 required a larger context window due to longer episodes (mid-episode fault escalation and budget-aware rollouts) and were evaluated under <code>moonshot-v1-128k</code>. Both are the same Kimi / Moonshot V1 family at <code>temperature=0.0</code>.</p>
+    <h3>LLM agent — Kimi / Moonshot V1-128k (apples-to-apples across all 10 tasks)</h3>
+    <p>All 10 tasks run under the same <code>moonshot-v1-128k</code> variant at <code>temperature=0.0</code>, <code>seed=42</code>.</p>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Task</th><th>Score</th><th>Reward</th></tr></thead>
+        <thead><tr><th>Task</th><th>Score</th><th>Reward</th><th>Delta vs baseline</th></tr></thead>
         <tbody>
-          <tr><td>T1 Single page</td><td class="num">98.7</td><td class="num">0.987</td></tr>
-          <tr><td>T2 Multi-page</td><td class="num">98.7</td><td class="num">0.987</td></tr>
-          <tr><td>T3 Duplicates</td><td class="num">98.7</td><td class="num">0.987</td></tr>
-          <tr><td>T4 Rate limit</td><td class="num">83.7</td><td class="num">0.837</td></tr>
-          <tr><td>T5 Server error</td><td class="num">84.3</td><td class="num">0.843</td></tr>
-          <tr><td>T6 Page drift</td><td class="num">94.7</td><td class="num">0.947</td></tr>
-          <tr><td>T7 Totals trap</td><td class="num">98.7</td><td class="num">0.987</td></tr>
-          <tr><td>T8 Mixed faults</td><td class="num">97.3</td><td class="num">0.973</td></tr>
-          <tr><td>T9 Adaptive adversary</td><td class="num">97.5</td><td class="num">0.975</td></tr>
-          <tr><td>T10 Constrained budget</td><td class="num">98.7</td><td class="num">0.987</td></tr>
-          <tr class="avg-row"><td><strong>Average (T1-T10)</strong></td><td class="num"><strong>95.1</strong></td><td class="num"><strong>0.951</strong></td></tr>
+          <tr><td>T1 Single page</td><td class="num">98.7</td><td class="num">0.987</td><td class="num">+0.7</td></tr>
+          <tr><td>T2 Multi-page</td><td class="num">98.7</td><td class="num">0.987</td><td class="num">+0.7</td></tr>
+          <tr><td>T3 Duplicates</td><td class="num">98.7</td><td class="num">0.987</td><td class="num">+0.7</td></tr>
+          <tr><td>T4 Rate limit (429)</td><td class="num">95.7</td><td class="num">0.957</td><td class="num">+0.7</td></tr>
+          <tr><td>T5 Server error (500)</td><td class="num">96.3</td><td class="num">0.963</td><td class="num">+0.6</td></tr>
+          <tr><td>T6 Page drift</td><td class="num">94.7</td><td class="num">0.947</td><td class="num">+0.7</td></tr>
+          <tr><td>T7 Totals trap</td><td class="num">98.7</td><td class="num">0.987</td><td class="num">+0.7</td></tr>
+          <tr><td>T8 Mixed faults</td><td class="num">97.3</td><td class="num">0.973</td><td class="num">+0.9</td></tr>
+          <tr><td>T9 Adaptive adversary</td><td class="num">97.5</td><td class="num">0.975</td><td class="num">+0.6</td></tr>
+          <tr><td>T10 Constrained budget</td><td class="num">98.7</td><td class="num">0.987</td><td class="num">+0.7</td></tr>
+          <tr class="avg-row"><td><strong>Average (T1-T10)</strong></td><td class="num"><strong>97.5</strong></td><td class="num"><strong>0.975</strong></td><td class="num"><strong>+0.7</strong></td></tr>
         </tbody>
       </table>
     </div>
-    <p>The LLM matches or slightly exceeds the rule-based baseline on <strong>8 of 10 tasks</strong>, including the two novel hard tasks T9 (adaptive adversary) and T10 (constrained budget). Relative to the baseline (96.8 avg across the same 10 tasks), the LLM lands at <strong>95.1 (−1.7 pts)</strong> — the remaining gap is concentrated in T4/T5, where the Robustness dimension penalizes silent retries rather than correctness gaps.</p>
+    <p>Kimi-128k matches or slightly exceeds the rule-based baseline on <strong>all 10 tasks</strong>. The real findings are in the cross-model and ablation data below.</p>
 
     <figure>
       <img src="benchmark_results.png" alt="ComtradeBench benchmark results"/>
       <figcaption>Rule-based baseline vs. Kimi LLM agent across the 10-task suite.</figcaption>
     </figure>
+
+    <h3>Cross-model comparison — T9 is genuinely discriminative</h3>
+    <p>Adding a second LLM, <strong>Llama 3.3 70B</strong> (Groq), on the same 10 tasks, same agent loop, same prompt, same seed:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>T1-T8 avg</th><th>T9 score</th><th>T10 score</th><th>T1-T10 avg</th></tr></thead>
+        <tbody>
+          <tr><td>Rule-based baseline</td><td class="num">96.5</td><td class="num">96.9</td><td class="num">98.0</td><td class="num">96.8</td></tr>
+          <tr><td>Kimi Moonshot V1-128k</td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong></td><td class="num">98.7</td><td class="num"><strong>97.5</strong></td></tr>
+          <tr><td>Llama 3.3 70B</td><td class="num"><strong>97.4</strong></td><td class="num" style="color:#f87171"><strong>18.7</strong></td><td class="num">95.7</td><td class="num">89.3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Two frontier-class LLMs perform <strong>essentially identically on T1-T8</strong> (97.4 each) but diverge catastrophically on T9: a <strong>78.8-point gap</strong> on the same task with the same prompt. Llama handles static faults (retries, dedup, totals traps) but fails on <strong>within-episode fault escalation</strong> — the core property T9 was designed to measure. This validates T9 as a genuine stress test rather than a cosmetic hard task.</p>
+
+    <h3>Ablation — context window dominates prompt engineering</h3>
+    <p>We originally claimed the T4/T5 Robustness gap could be closed with an explicit <strong>EVENTS scratchpad</strong> prompt pattern. The data told a different story. Three conditions on Kimi, same model family, same agent loop, same seed:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Condition</th><th>Context</th><th>Prompt</th><th>T4 Robustness</th><th>T5 Robustness</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td>8k</td><td>default</td><td class="num">0 / 15</td><td class="num">0 / 15</td></tr>
+          <tr><td>B</td><td>128k</td><td>default</td><td class="num">12 / 15</td><td class="num">12 / 15</td></tr>
+          <tr><td>C</td><td>128k</td><td>EVENTS scratchpad (enhanced)</td><td class="num">12 / 15</td><td class="num">12 / 15</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li><strong>A → B (context effect):</strong> +12 Robustness on both tasks, purely from enlarging the context window. No prompt change.</li>
+      <li><strong>B → C (prompt effect):</strong> zero additional gain. Explicit "log before you retry" scaffolding on top of 128k produced no measurable improvement.</li>
+    </ul>
+    <p>The original T4/T5 = 0 Robustness at 8k was not a narration failure. It was a <strong>context-truncation failure</strong> — the retry narration fell off the back of the buffer before it could land in <code>run_log</code>. At 128k, the same prompt captures everything. Adding an explicit EVENTS scratchpad on top changes nothing.</p>
+    <p><strong>Takeaway for agent builders:</strong> on tool-use benchmarks with long trajectories, <strong>size the context to the episode length before reaching for prompt engineering</strong>. A prompt cannot recover narration that was never written because the buffer filled up.</p>
+
+    <h3>How ComtradeBench compares to existing tool-use benchmarks</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Benchmark</th><th>Adversarial faults in env</th><th>Within-episode non-stationarity</th><th>Multi-dim execution scoring</th><th>Budget constraints</th></tr></thead>
+        <tbody>
+          <tr><td>ToolBench (Qin et al., 2023)</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+          <tr><td>τ-bench (Sierra / Anthropic)</td><td class="num">partial</td><td class="num">—</td><td class="num">✓</td><td class="num">—</td></tr>
+          <tr><td>BFCL (Berkeley)</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+          <tr><td>API-Bank</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+          <tr><td><strong>ComtradeBench</strong></td><td class="num"><strong>✓</strong></td><td class="num"><strong>✓</strong> (T9)</td><td class="num"><strong>✓</strong> (6 dims)</td><td class="num"><strong>✓</strong> (T10)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Closest relative is τ-bench. ComtradeBench's unique combination is <strong>environment-level fault injection + within-episode escalation (T9) + budget-aware rollouts (T10)</strong>. The adversarial bits live in the environment, not in the prompts or labels, so an agent cannot route around them by rephrasing.</p>
+
+    <h3>Scoring weight rationale</h3>
+    <p>The six-dimensional rubric weights are 30 / 15 / 15 / 15 / 15 / 10. The design principle: <strong>correctness is necessary but not sufficient</strong>. Correctness gets the largest single weight (30), but the combined weight of "execution quality under adversity" dimensions (Completeness + Robustness + Efficiency + Data Quality = 60) exceeds Correctness. This forces the score to reward agents that do the job right, not just return something plausible. Observability at 10 is intentionally lower — an audit requirement, not a core task, but non-zero because an un-auditable pipeline is not a production-ready pipeline.</p>
 
     <h3>Why prompt design matters for T4/T5</h3>
     <p>T4 (HTTP 429) and T5 (HTTP 500) are the tasks where prompt design has the largest effect, and they expose a subtle gap between <em>doing the right thing</em> and <em>being scored for it</em>. The agent loop already retries faults mechanically, so Correctness stays perfect — but if the model treats <code>&lt;tool_result&gt;</code> as transient context and never echoes the fault into its own narration, the recovery happens silently and the judge sees no proof. Up to 15 Robustness points evaporate.</p>

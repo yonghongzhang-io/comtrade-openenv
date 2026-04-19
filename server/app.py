@@ -272,9 +272,10 @@ LANDING_HTML = """<!DOCTYPE html>
         Rule-based baseline: <strong>96.8 / 100</strong> across T1-T10.
       </p>
       <p style="font-size:.82rem; color:var(--muted); line-height:1.7;">
-        Kimi / Moonshot V1: <strong style="color:var(--text)">95.1 / 100</strong> across all 10
-        tasks (−1.7 vs baseline). Matches or beats baseline on 8 of 10 tasks, including the novel
-        T9 (adaptive adversary) and T10 (constrained budget).
+        Kimi V1-128k: <strong style="color:var(--text)">97.5 / 100</strong> (+0.7), beats baseline
+        on all 10 tasks. Llama 3.3 70B: 89.3, collapses on T9 (<strong style="color:#f87171">18.7</strong>)
+        &mdash; <strong style="color:var(--text)">T9 produces a 78.8-pt discriminative gap</strong>
+        between models.
       </p>
     </div>
 
