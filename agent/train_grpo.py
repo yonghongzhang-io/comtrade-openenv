@@ -384,23 +384,40 @@ def train(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------
     if args.hf_model:
         logger.info(f"Loading HuggingFace model: {args.hf_model}")
-        llm = LLMBackend.from_hf(args.hf_model)
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         from transformers import AutoTokenizer, AutoModelForCausalLM
         tokenizer = AutoTokenizer.from_pretrained(args.hf_model, trust_remote_code=True)
+        # device_map pinned to the same device as our training tensors.
+        # "auto" on Mac picks MPS and then fails because training code lives on CPU.
         model = AutoModelForCausalLM.from_pretrained(
             args.hf_model,
             torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto",
+            device_map=device,
             trust_remote_code=True,
         )
+        # Load LLMBackend AFTER the model, and inject the trained model into its pipeline
+        # so rollouts use the actual policy being updated (see sync fix below).
+        llm = LLMBackend.from_hf(args.hf_model, device=device)
+
+        # CRITICAL FIX (2026-04-19): unify the rollout policy with the trainable model.
+        # Without this, pipeline() loads its own separate model copy — gradient updates
+        # on `model` never propagate to `llm._pipe.model`, so rollouts always use stale
+        # weights and GRPO produces flat reward curves despite valid gradient steps.
+        llm._pipe.model = model
+        # Also sync pipeline device: pipeline routes input tensors to self.device before
+        # calling model.generate(). If its device is stale (e.g. MPS from auto-detect) but
+        # model is on CPU, we get "Placeholder storage has not been allocated on MPS".
+        llm._pipe.device = torch.device(device)
+        model.gradient_checkpointing_enable()
+        model.eval()
 
         # Reference model (frozen copy for KL divergence)
         from copy import deepcopy
         ref_model = deepcopy(model)
         for p in ref_model.parameters():
             p.requires_grad_(False)
+        ref_model.eval()
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
@@ -637,6 +654,9 @@ def _gradient_step(
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=max_grad_norm)
     optimizer.step()
+
+    # Restore eval mode for next iter's rollouts (sync'd to this same model object).
+    model.eval()
 
     return stats["loss"], stats["kl"]
 

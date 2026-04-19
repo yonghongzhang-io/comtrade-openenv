@@ -62,7 +62,7 @@ multi-dimensional scoring reward correct execution, not fluent output.
 | **Kimi / Moonshot V1 (128k)** | **97.5 / 100** | **10 of 10** | **97.5** | apples-to-apples across all 10 tasks |
 | **Claude Sonnet 4.6** | **97.5 / 100** | **10 of 10** | **97.5** | identical per-task scores to Kimi — frontier models indistinguishable |
 | Llama 3.3 70B (Groq) | 89.3 / 100 | 0 of 10 | **18.7** | matches frontier on T1-T8 but collapses on T9 |
-| GRPO (reward-only, Qwen2.5-7B) | see curve | — | — | rollout validation (8 iters); not a full training study — see Limitations |
+| Reward-signal validation (API rollouts, Qwen2.5-7B via Ollama) | see curve | — | — | **rollout-only, no gradient updates** (8 iters, API mode). Real GRPO training with gradient updates is a separate artifact — see "GRPO gradient training" below if present, otherwise Limitations. |
 
 **The benchmark produces two clean discriminative signals:**
 
@@ -333,9 +333,19 @@ openenv push --repo-id <your-hf-org>/comtrade-env
 ![Benchmark Results](benchmark_results.png)
 *Rule-based baseline vs. Kimi LLM agent across the 10-task suite.*
 
-### GRPO Training Curve (8 iterations, real LLM)
+### Reward-signal validation (8 iterations, rollout-only, no gradient updates)
 
-![Training Curve](training_curve.png)
+![Reward-signal validation curve](training_curve.png)
+
+We ran 8 iterations of the GRPO rollout loop in **API mode** (Qwen2.5-7B served via local
+Ollama), collecting group-relative advantages and logging mean reward per iteration. In API
+mode the agent makes LLM calls over HTTP, so **no gradient updates happen** — this is a
+*reward-signal sanity check*, not training. Mean reward exceeded the rule-based baseline in
+6 of 8 iterations, which confirms the reward signal is aligned with task correctness (a
+prerequisite for any downstream GRPO training with gradients to work at all).
+
+For a **real** GRPO gradient-training run (Qwen2.5-X on H100, gradient updates applied), see
+`grpo_gradient_training.json` if present in this release; otherwise see Limitations.
 
 ### LLM Agent — Kimi / Moonshot V1-128k (apples-to-apples across all 10 tasks)
 
@@ -442,9 +452,17 @@ These are the specific things this release does not yet do:
 - **Three LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, and Llama 3.3 70B. Adding
   GPT-4o and Qwen2.5-72B would broaden the cross-model story further, though the current data
   already shows saturation at the frontier.
-- **GRPO training at PoC scale only.** 8 iterations is a sanity-check run, not a full training
-  study. Extending to 50-200 iterations on a held-out task split (e.g. T1-T8 train, T9-T10 test)
-  would convert the pipeline from "plumbing" to "experiment."
+- **GRPO "training" disclosure.** The 8-iteration curve in this repo was produced in
+  **rollout-only API mode** (`use_gradient_update=False` — see `agent/train_grpo.py` L421).
+  It validates that the reward signal is aligned with task correctness but does **not**
+  constitute a full gradient-training run. If a separate `grpo_gradient_training.json`
+  artifact ships with this release, that is the real training run (Lambda H100, Qwen2.5-X,
+  gradient updates applied); otherwise, real training on a held-out split is future work.
+- **T4/T5 Robustness ceiling at 12/15 is explained.** Reading `server/judge.py` L293-336,
+  the +3 bonus on rate-limit tasks requires the literal keyword `"exponential"` or
+  `"backoff"` in `run.log`; on server-error tasks it requires `"max"` or `"limit"`. The
+  retry logic itself is correct; the ceiling is a string-matching artifact of the scoring
+  rubric, not a model capability gap. A future release will broaden the keyword set.
 - **Benchmark comparison is qualitative.** We describe the feature matrix vs. τ-bench / BFCL /
   ToolBench but have not yet run the same LLM across all four benchmarks side-by-side.
 - **Single-seed evaluation.** All LLM runs use `seed=42`. Multi-seed robustness intervals would

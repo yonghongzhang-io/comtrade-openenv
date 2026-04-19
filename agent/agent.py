@@ -189,13 +189,25 @@ class LLMBackend:
             return out[0]["generated_text"].strip()
 
         if self._client is not None:
-            resp = self._client.chat.completions.create(
-                model=self._model_name,
-                messages=messages,
-                max_tokens=max_new_tokens,
-                temperature=temperature,
-                stop=stop,
-            )
+            # GPT-5 / o1 family rejected `max_tokens` in favor of `max_completion_tokens`
+            # starting 2026-Q1. Keep legacy `max_tokens` for Kimi / Claude / Groq / older
+            # OpenAI models which still accept it.
+            mn = self._model_name.lower()
+            is_gpt5_family = mn.startswith("gpt-5") or mn.startswith("o1") or mn.startswith("o3")
+            kwargs = {
+                "model": self._model_name,
+                "messages": messages,
+            }
+            if is_gpt5_family:
+                # GPT-5 / o1 / o3: no `stop`, no `temperature<1` (uses default reasoning),
+                # and `max_tokens` renamed to `max_completion_tokens`.
+                kwargs["max_completion_tokens"] = max_new_tokens
+            else:
+                kwargs["max_tokens"] = max_new_tokens
+                kwargs["temperature"] = temperature
+                if stop:
+                    kwargs["stop"] = stop
+            resp = self._client.chat.completions.create(**kwargs)
             return resp.choices[0].message.content.strip()
 
         raise RuntimeError("No backend initialized. Call from_hf() or from_api() first.")

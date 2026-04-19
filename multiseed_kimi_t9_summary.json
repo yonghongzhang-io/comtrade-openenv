@@ -1,0 +1,81 @@
+{
+  "label": "kimi_t9",
+  "backend": "kimi",
+  "model": "moonshot-v1-128k",
+  "task": "T9",
+  "n_seeds": 5,
+  "seeds": [
+    137,
+    2024,
+    31,
+    42,
+    7
+  ],
+  "mean_score": 97.5,
+  "std_score": 0.0,
+  "min_score": 97.5,
+  "max_score": 97.5,
+  "per_seed": [
+    {
+      "seed": 137,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 2024,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 31,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 42,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 7,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    }
+  ],
+  "generated_at": "2026-04-19T22:28:35"
+}

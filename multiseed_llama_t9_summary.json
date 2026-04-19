@@ -1,0 +1,60 @@
+{
+  "label": "llama_t9",
+  "backend": "groq",
+  "model": "llama-3.3-70b-versatile",
+  "task": "T9",
+  "n_seeds": 5,
+  "seeds": [
+    137,
+    2024,
+    31,
+    42,
+    7
+  ],
+  "mean_score": 38.4,
+  "std_score": 52.592,
+  "min_score": 0.0,
+  "max_score": 97.5,
+  "per_seed": [
+    {
+      "seed": 137,
+      "score": 94.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 2024,
+      "score": 0.0,
+      "breakdown": {}
+    },
+    {
+      "seed": 31,
+      "score": 0.0,
+      "breakdown": {}
+    },
+    {
+      "seed": 42,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      }
+    },
+    {
+      "seed": 7,
+      "score": 0.0,
+      "breakdown": {}
+    }
+  ],
+  "generated_at": "2026-04-19T22:32:05"
+}

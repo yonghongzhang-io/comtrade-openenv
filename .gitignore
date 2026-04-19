@@ -3,6 +3,9 @@ __pycache__/
 *.pyo
 .venv/
 grpo_output/
+grpo_smoke/
+grpo_gradient_training/
+*.log
 .DS_Store
 .claude/
 submission_package.md
