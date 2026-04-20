@@ -14,31 +14,37 @@ version = "0.1.0"
 description = "ComtradeBench — UN Trade Data Fetching Benchmark for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
-    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
-    "openenv-core[core]>=0.2.1",
+    # Core OpenEnv runtime (provides FastAPI server + HTTP client types).
+    # Dep versions use lower + upper bounds: lower is what we've tested,
+    # upper prevents major-version surprises (API breakage on next release).
+    "openenv-core[core]>=0.2.1,<1.0",
     # Environment-specific dependencies
-    "fastmcp>=2.0",
-    "fastapi>=0.115",
-    "uvicorn>=0.30",
-    "requests>=2.32",
+    "fastmcp>=2.0,<3.0",
+    "fastapi>=0.115,<1.0",
+    "uvicorn>=0.30,<1.0",
+    "requests>=2.32,<3.0",
 ]
 
 [project.optional-dependencies]
 agent = [
-    # GRPO training pipeline (agent/ directory)
-    "torch>=2.3",
-    "transformers>=4.45",
-    "accelerate>=0.34",
-    "peft>=0.13",
-    "trl>=0.12",
-    "openai>=1.50",
-    "python-dotenv>=1.0",
-    "gradio>=4.0",
-    "matplotlib>=3.10",
+    # GRPO training pipeline (agent/ directory).
+    # We pin peft == 0.12.0 exactly because 0.19.x calls
+    # torch.distributed.tensor.DTensor which requires torch >= 2.12 — and
+    # Lambda Stack 22.04 ships torch 2.11.x, so >= would silently break.
+    # See commit 1b0a1e1 for the debugging trail.
+    "torch>=2.3,<3.0",
+    "transformers>=4.45,<5.0",
+    "accelerate>=0.34,<2.0",
+    "peft==0.12.0",
+    "trl>=0.12,<1.0",
+    "openai>=1.50,<2.0",
+    "python-dotenv>=1.0,<2.0",
+    "gradio>=4.0,<6.0",
+    "matplotlib>=3.10,<4.0",
 ]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.0.0",
+    "pytest>=8.0.0,<9.0",
+    "pytest-cov>=4.0.0,<7.0",
 ]
 
 [project.scripts]

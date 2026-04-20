@@ -27,6 +27,7 @@ import json
 import logging
 import os
 import random
+import socket
 import subprocess
 import sys
 import tempfile
@@ -54,6 +55,23 @@ _mock_service_lock = threading.Lock()
 _mock_service_started = threading.Event()
 MAX_REQUESTS_PER_EPISODE = 100
 MAX_SCORE = 100.0
+
+
+def _probe_mock_service_running(timeout_s: float = 1.0) -> bool:
+    """Cheap outside-the-lock probe: is the mock service already listening?
+
+    Uses a raw TCP connect instead of urllib.request.urlopen so that a
+    not-yet-fully-ready uvicorn (accepting connections but not yet serving
+    /docs) doesn't mislead us. TCP-level accept is what matters — if we can
+    connect, the port is claimed by *something* that resembles our service.
+
+    Returns True if port is reachable, False otherwise. Never raises.
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", MOCK_SERVICE_PORT), timeout=timeout_s):
+            return True
+    except (OSError, socket.timeout):
+        return False
 
 
 def _load_tasks():
@@ -157,11 +175,21 @@ class ComtradeEnvironment(MCPEnvironment):
             url = f"http://localhost:{MOCK_SERVICE_PORT}/api/data?{params}"
             try:
                 with urllib.request.urlopen(url, timeout=10) as resp:
-                    return json.loads(resp.read().decode())
+                    return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
+                # Surface HTTP status distinctly so the agent can retry on 429/500.
                 return {"status": e.code, "error": str(e), "retry": True}
-            except Exception as e:
-                return {"error": str(e)}
+            except urllib.error.URLError as e:
+                # Network-layer failure (DNS, connection refused, timeout).
+                logger.warning(f"fetch_page URLError: {e}")
+                return {"error": f"URLError: {e.reason}", "retry": True}
+            except json.JSONDecodeError as e:
+                # Mock service returned invalid JSON — infrastructure issue, not agent error.
+                logger.error(f"fetch_page mock returned non-JSON: {e}")
+                return {"error": f"invalid JSON from mock: {e}"}
+            except socket.timeout as e:
+                logger.warning(f"fetch_page timed out: {e}")
+                return {"error": "timeout", "retry": True}
 
         @mcp.tool
         def submit_results(
@@ -199,8 +227,11 @@ class ComtradeEnvironment(MCPEnvironment):
                 out_dir.mkdir(parents=True, exist_ok=True)
                 (out_dir / "data.jsonl").write_text(data_jsonl)
                 try:
-                    metadata = json.loads(metadata_json)
-                except Exception:
+                    metadata = json.loads(metadata_json) if metadata_json else {}
+                except json.JSONDecodeError as e:
+                    # Agent submitted malformed metadata — log but don't crash scoring.
+                    # The judge will penalise via reduced Correctness / Observability.
+                    logger.info(f"submit_results: invalid metadata_json ({e}); using empty dict")
                     metadata = {}
                 if not isinstance(metadata, dict):
                     metadata = {}
@@ -245,22 +276,36 @@ class ComtradeEnvironment(MCPEnvironment):
             logger.warning("mock_service not found")
             return
 
-        # Check if already running (handles concurrent ComtradeEnvironment inits
-        # during parallel GRPO rollouts — only one instance needs to start the service).
+        # --- Fast path (no lock): Event already set ---
+        # Under parallel GRPO rollouts, dozens of ComtradeEnvironment() ctors
+        # can fire in under a second. Serializing an HTTP probe through the
+        # lock turns that into a stampede. This fast-path lets everyone after
+        # the first init skip the lock entirely.
+        if _mock_service_started.is_set():
+            logger.debug(f"Mock service already running on :{MOCK_SERVICE_PORT}, reusing (fast path).")
+            return
+
+        # --- Probe BEFORE lock ---
+        # Handles the external-process case (e.g. the user ran the mock service
+        # manually, or we're in a fresh Python process that inherited an
+        # already-bound port). The probe may take up to 1 s on a cold connection;
+        # doing it outside the lock means N processes probe in parallel instead
+        # of being serialised into N × 1 s.
+        if _probe_mock_service_running():
+            _mock_service_started.set()
+            logger.info(f"Mock service already running externally on :{MOCK_SERVICE_PORT} (probed, no lock).")
+            return
+
+        # --- Slow path: acquire lock and start a subprocess ---
+        # We held off the lock until here to avoid the probe-under-lock stampede,
+        # but inside the lock we must re-check Event (another thread may have
+        # started the service while we were probing). This is double-checked
+        # locking; it's correct with threading.Event (which has proper memory
+        # synchronisation on set/is_set).
         with _mock_service_lock:
             if _mock_service_started.is_set():
-                logger.debug(f"Mock service already running on :{MOCK_SERVICE_PORT}, reusing.")
+                logger.debug(f"Mock service started by another thread while we probed; reusing.")
                 return
-            # Also probe via HTTP in case it was started by an external process
-            try:
-                urllib.request.urlopen(
-                    f"http://localhost:{MOCK_SERVICE_PORT}/docs", timeout=1.0
-                )
-                _mock_service_started.set()
-                logger.info(f"Mock service already running externally on :{MOCK_SERVICE_PORT}.")
-                return
-            except Exception:
-                pass  # Not running — start it below
 
             try:
                 self._mock_proc = subprocess.Popen(
@@ -344,9 +389,44 @@ class ComtradeEnvironment(MCPEnvironment):
     def state(self) -> State:
         return self._state
 
-    def __del__(self):
-        if self._mock_proc:
+    def close(self) -> None:
+        """Explicit cleanup — terminates the mock service subprocess if this
+        environment owns one. Safe to call multiple times.
+
+        Prefer this over relying on __del__, which has unpredictable GC
+        timing and can leave zombie processes under CPython reference-cycle
+        collection.
+
+        Usage:
+            env = ComtradeEnvironment()
             try:
-                self._mock_proc.terminate()
-            except Exception:
-                pass
+                # ... use env ...
+            finally:
+                env.close()
+
+            # Or with contextlib.closing:
+            from contextlib import closing
+            with closing(ComtradeEnvironment()) as env:
+                # ...
+        """
+        proc = getattr(self, "_mock_proc", None)
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=1.0)
+        except (OSError, ProcessLookupError) as e:
+            logger.debug(f"close: subprocess already gone: {e}")
+        finally:
+            self._mock_proc = None
+            # NOTE: we do NOT clear _mock_service_started — other env instances
+            # may still be using the same service, and the module-level Event
+            # outlives any single instance.
+
+    def __del__(self):
+        # Fallback only; prefer explicit close(). See close() docstring.
+        self.close()
