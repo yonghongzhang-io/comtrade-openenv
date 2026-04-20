@@ -368,19 +368,17 @@ openenv push --repo-id <your-hf-org>/comtrade-env
 ![Benchmark Results](benchmark_results.png)
 *Rule-based baseline vs. Kimi LLM agent across the 10-task suite.*
 
-### Reward-signal validation (8 iterations, rollout-only, no gradient updates)
+### GRPO training curve — 3B + LoRA, learning phase then collapse
 
-![Reward-signal validation curve](training_curve.png)
+![Qwen2.5-3B + LoRA training curve](training_curve.png)
 
-We ran 8 iterations of the GRPO rollout loop in **API mode** (Qwen2.5-7B served via local
-Ollama), collecting group-relative advantages and logging mean reward per iteration. In API
-mode the agent makes LLM calls over HTTP, so **no gradient updates happen** — this is a
-*reward-signal sanity check*, not training. Mean reward exceeded the rule-based baseline in
-6 of 8 iterations, which confirms the reward signal is aligned with task correctness (a
-prerequisite for any downstream GRPO training with gradients to work at all).
+Three-panel view of the **Qwen2.5-3B + LoRA Lambda A100 run** (same data plotted in the envelope figure above, but with more numerical detail):
 
-For a **real** GRPO gradient-training run (Qwen2.5-X on H100, gradient updates applied), see
-`grpo_gradient_training.json` if present in this release; otherwise see Limitations.
+- **Left panel — reward vs iteration**: Clear learning signal from iter 3 to iter 14 (mean reward oscillates 0.0 – 0.73 as different task subsets are sampled), then the collapse at iter 15 is visible as the line drops to 0.0 and stays there through iter 18.
+- **Middle panel — per-task reward**: Shows which specific tasks contributed to each iter's mean. T7 (totals trap) and T8 (mixed faults) are frequently the hardest for 3B to solve; T1 and T3 get reliably near-max rewards during the learning phase.
+- **Right panel — loss and KL divergence**: KL grows monotonically (adapter drifts from base) up through iter 14, then *keeps rising* at iter 18 (1e-3) even though mean reward has collapsed — confirming the adapter kept moving *after* the collapse, into a degenerate region of policy space. Loss oscillates positive/negative as expected (GRPO loss sign tracks policy-improvement direction, not "goodness").
+
+The envelope figure at the top of this Results section aggregates this finding with the 1.5B and 7B runs into a single visual; this panel gives the per-iter detail for the one configuration that actually moved.
 
 ### LLM Agent — Kimi / Moonshot V1-128k (apples-to-apples across all 10 tasks)
 
