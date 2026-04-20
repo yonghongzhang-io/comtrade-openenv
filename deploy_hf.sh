@@ -45,6 +45,8 @@ cp "${SRC}/inference_results_baseline.json" "${STAGE_DIR}/"
 cp "${SRC}/grpo_gradient_training.jsonl"  "${STAGE_DIR}/" 2>/dev/null || true
 cp "${SRC}/grpo_gradient_training_summary.json" "${STAGE_DIR}/" 2>/dev/null || true
 cp "${SRC}/grpo_7b_lora_5iter_saturation.json" "${STAGE_DIR}/" 2>/dev/null || true
+cp "${SRC}/grpo_3b_lora_collapse.json"    "${STAGE_DIR}/" 2>/dev/null || true
+cp "${SRC}/grpo_gradient_training_3b.jsonl" "${STAGE_DIR}/" 2>/dev/null || true
 cp "${SRC}/banner.png"                    "${STAGE_DIR}/"
 cp "${SRC}/benchmark_results.png"         "${STAGE_DIR}/"
 cp "${SRC}/training_curve.png"            "${STAGE_DIR}/"
