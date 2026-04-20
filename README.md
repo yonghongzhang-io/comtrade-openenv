@@ -368,29 +368,17 @@ openenv push --repo-id <your-hf-org>/comtrade-env
 ![Benchmark Results](benchmark_results.png)
 *Rule-based baseline vs. Kimi LLM agent across the 10-task suite.*
 
-### GRPO training — detailed per-iter metrics (3B + LoRA, learning then collapse)
+### GRPO training curve — 3B + LoRA, per-iter metrics
 
-See the **envelope figure at the top of this Results section** (`grpo_envelope.png`) for the summary
-visualisation of all three training configurations side-by-side. The envelope figure is the
-canonical aggregated view.
+![Qwen2.5-3B + LoRA training curve: reward, per-task, loss & KL](training_curve.png)
 
-For fine-grained per-iter data on the single configuration that actually produced gradient
-signal (Qwen2.5-3B + LoRA): raw metrics are in `grpo_gradient_training_3b.jsonl` (15 iters with
-numeric KL / loss / per-task reward), plus the interpretation in `grpo_3b_lora_collapse.json`.
-Regenerate a 3-panel matplotlib view (reward / per-task / loss+KL) with:
+Three matplotlib panels for the **Qwen2.5-3B + LoRA Lambda A100 run** — the fine-grained per-iter view that complements the aggregated envelope figure above:
 
-```bash
-python agent/plot_training.py \
-    --metrics grpo_gradient_training_3b.jsonl \
-    --output training_curve.png
-```
+- **Left — reward vs iteration**: clear learning signal from iter 3 to iter 14 (mean reward oscillates 0.0 – 0.73 as different task subsets are sampled). Collapse at iter 15 is visible — the line drops to 0.0 at iter 12 (sampled an unlucky T9 + infra failure) and then collapses for real at iter 18 (mean 0.027, the LoRA adapter having drifted into a degenerate output region).
+- **Middle — per-task reward**: shows which specific tasks contributed to each iter's mean. T7 (totals trap) and T8 (mixed faults) are frequently the hardest for 3B to solve; T1 and T3 reliably hit near-max rewards during the learning phase.
+- **Right — loss and KL divergence**: KL grows monotonically (adapter drifts from base) up through iter 14, then *keeps rising* at iter 18 (1e-3) even after mean reward has collapsed — confirming the adapter kept moving *through* the collapse, into a worse region of policy space. Loss oscillates positive/negative as expected (GRPO loss sign tracks policy-improvement direction, not "goodness").
 
-Key per-iter facts (from `grpo_gradient_training_3b.jsonl`):
-
-- **Iters 1-2 (warmup, T1-T8 only)**: mean_reward ≈ 0.95, reward_std ≈ 0 (LoRA init = identity, no gradient signal by design).
-- **Iters 3-14 (full task pool, learning phase)**: reward_std oscillates 0.46 – 0.55 (real signal), KL grows monotonically 8e-6 → 5.6e-4, loss alternates positive/negative as the policy improves and retreats. Mean reward 0.44 – 0.73 depending on task subset sampled.
-- **Iters 15-17 (collapse)**: three consecutive iterations, each with `n_valid=0` — all 4 rollouts per iter failed to produce parseable tool calls. No gradient step applied. Not written to metrics.jsonl.
-- **Iter 18**: mean_reward=0.027, max=0.107, kl=1.04e-3 (adapter kept drifting through the collapse). Training was terminated after this.
+Raw per-iter JSON in `grpo_gradient_training_3b.jsonl`; interpretation + collapse diagnosis in `grpo_3b_lora_collapse.json`. Note iters 15-17 are missing from the JSON because they produced zero valid rollouts (no gradient step, nothing to record).
 
 ### LLM Agent — Kimi / Moonshot V1-128k (apples-to-apples across all 10 tasks)
 
