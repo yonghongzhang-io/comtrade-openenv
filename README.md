@@ -495,38 +495,21 @@ These are the specific things this release does not yet do:
   `"exponential"` or `"backoff"` in `run.log`; on server-error tasks it requires `"max"` or
   `"limit"`. The retry logic itself is correct; the ceiling is a rubric artifact, not a model
   capability gap. Future work is to broaden the keyword set or move to a semantic check.
-- **Four LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, GPT-5, and Llama 3.3 70B.
-  Adding Gemini, Qwen2.5-72B, and DeepSeek would broaden the cross-model story further, though
-  the current data already exposes three independent discriminative axes (execution-vs-reasoning
-  at the frontier, saturation at the ceiling, reliability at the sub-frontier).
-- **GRPO operating envelope mapped at both ends, not the middle.** We have empirical evidence of
-  where GRPO *fails* on ComtradeBench: Qwen2.5-1.5B (full-parameter, 50 iter on Lambda A100
-  40GB) oscillates 0.22-0.94 with no net trend — capacity ceiling. Qwen2.5-7B + LoRA (r=16) on
-  the same hardware starts at mean reward 0.987 with reward_std ≈ 0 → GRPO advantage = 0 → no
-  gradient signal — saturation ceiling. The useful training band likely sits around 3B-4B
-  parameters but we did not run a 3B training to confirm; time permitting, a 3B + LoRA run
-  would complete the envelope triangle. The bug-fix for policy/rollout-actor desync in
-  `train_grpo.py` is validated independently via a local CPU smoke test (kl > 0 between
-  iter 1 and iter 2 confirms the LoRA adapter receives gradient updates), so the pipeline
-  itself is proven sound.
-- **Single-seed evaluation for most LLMs.** Kimi and Llama have multi-seed data on T9 (std
-  data in `multiseed_*_summary.json`). Claude, GPT-5, and all other tasks use seed=42 only.
+- **Five LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, GPT-5, Llama 3.3 70B, and
+  Qwen2.5-7B-Instruct (open-source, zero-shot). Adding Gemini, Qwen2.5-72B, and DeepSeek would
+  broaden the cross-model story further, though the current data already exposes four
+  independent discriminative findings (execution-vs-reasoning at the frontier, saturation at the
+  ceiling, reliability at the sub-frontier, open-source parity with closed frontier).
+- **Single-seed evaluation for most LLMs.** Kimi and Llama have multi-seed data on T9
+  (`multiseed_*_summary.json`). Claude, GPT-5, Qwen2.5-7B, and all other tasks use seed=42 only.
   Expanding multi-seed coverage is future work.
+- **GRPO training stability engineering is future work.** The 3B + LoRA collapse at iter 15 is a
+  diagnosable instability: adaptive KL penalty, stricter trust-region clipping, or early-stop
+  on reward-variance collapse would likely stabilise the learning window past iter 14. We did
+  not perform this hyperparameter engineering in the submission window.
 - **Benchmark comparison is qualitative.** The feature matrix vs τ-bench / BFCL / ToolBench
-  above is qualitative. We have not yet run the same Kimi agent across all four benchmarks
-  to produce a quantitative cross-benchmark anchor.
-- **(Historical note — legacy rollout-only metrics.)** An earlier 8-iteration rollout-only
-  curve (produced in API mode via Ollama, `use_gradient_update=False`) is preserved in
-  `grpo_training_metrics.jsonl` for reference; it validates the reward signal aligns with
-  task correctness but contains no gradient updates. The actual Lambda training runs with
-  gradient updates are in `grpo_gradient_training.jsonl` (1.5B full-param) and
-  `grpo_7b_lora_5iter_saturation.json` (7B LoRA).
-- **T4/T5 Robustness string-matching artifact (redundant, preserved for legacy readers).**
-  rubric, not a model capability gap. A future release will broaden the keyword set.
-- **Benchmark comparison is qualitative.** We describe the feature matrix vs. τ-bench / BFCL /
-  ToolBench but have not yet run the same LLM across all four benchmarks side-by-side.
-- **Single-seed evaluation.** All LLM runs use `seed=42`. Multi-seed robustness intervals would
-  quantify variance.
+  is qualitative. We have not yet run the same Kimi agent across all four benchmarks to
+  produce a quantitative cross-benchmark anchor.
 
 ## License
 

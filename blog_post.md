@@ -408,25 +408,29 @@ All benchmark data is generated procedurally from a seeded PRNG — no external 
 
 This release is honest about what it does not yet do:
 
-- **T9 calibration is one-sided.** T9 sharply separates frontier from sub-frontier (Kimi / Claude
-  both 97.5 vs. Llama 18.7 — a 78.8-pt gap), but does *not* separate frontier models from each
-  other: Kimi-128k and Claude Sonnet 4.6 produce numerically identical scores across all 10 tasks.
-  A harder T9 variant with steeper mid-episode escalation would push the ceiling down and
-  differentiate frontier models further.
-- **T4/T5 Robustness ceiling at 12/15.** Neither a larger context nor an explicit EVENTS scratchpad
-  prompt pushed past 12 on retry-heavy tasks. The remaining 3 points correspond to a retry-count
-  or retry-timing fidelity sub-check we have not fully diagnosed. Future work: make that sub-
-  criterion explicit in the judge.
-- **Three LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, and Llama 3.3 70B. Adding
-  GPT-4o and Qwen2.5-72B would broaden the cross-model story further, though the current data
-  already shows saturation at the frontier.
-- **GRPO training at PoC scale.** 8 iterations is a sanity-check run, not a full training study.
-  Extending to 50-200 iterations with a held-out task split (e.g. T1-T8 train, T9-T10 test) would
-  convert the pipeline from "plumbing" to "experiment."
+- **Frontier saturation at the ceiling.** Kimi-128k and Claude Sonnet 4.6 produce numerically identical
+  scores across all 10 tasks; open-source Qwen2.5-7B zero-shot lands within 0.3 points of them (97.2).
+  ComtradeBench today measures execution reliability well but cannot fine-rank three execution-optimised
+  models against each other at the ceiling. A harder T9 variant with steeper mid-episode escalation,
+  and T11+ tasks targeting frontier-specific behaviours, would reopen the discrimination.
+- **T4/T5 Robustness ceiling at 12/15 is a rubric string-matching artifact.** Reading `server/judge.py`
+  L293-336, the +3 bonus on rate-limit tasks requires the literal keyword `"exponential"` or
+  `"backoff"` in `run.log`; on server-error tasks it requires `"max"` or `"limit"`. The retry logic
+  itself is correct; the ceiling is a rubric artifact, not a model capability gap. Future work is to
+  broaden the keyword set or move to a semantic check.
+- **Five LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, GPT-5, Llama 3.3 70B, and
+  Qwen2.5-7B-Instruct (open-source, zero-shot). Adding Gemini, Qwen2.5-72B, and DeepSeek would
+  broaden the cross-model story further, though the current data already exposes four independent
+  discriminative findings (execution-vs-reasoning at the frontier, saturation, sub-frontier
+  reliability, open-source parity).
+- **GRPO training stability engineering is future work.** The 3B + LoRA collapse at iter 15 is a
+  diagnosable instability: adaptive KL penalty, stricter trust-region clipping, or early-stop
+  on reward-variance collapse would likely stabilise the learning window past iter 14. We did
+  not perform this hyperparameter engineering in the submission window.
+- **Single-seed evaluation for most LLMs.** Kimi and Llama have multi-seed data on T9
+  (`multiseed_*_summary.json`). Claude, GPT-5, Qwen2.5-7B, and all other tasks use seed=42 only.
 - **Benchmark comparison is qualitative.** We describe the feature matrix vs. τ-bench / BFCL /
   ToolBench but have not yet run the same LLM across all four benchmarks side-by-side.
-- **Single-seed evaluation.** All LLM runs use `seed=42`. Multi-seed robustness intervals would
-  quantify variance on the non-deterministic tasks (T6 page drift, T9 escalation).
 
 None of these block using ComtradeBench as a tool-use benchmark today; they are the research
 directions we think make the environment more useful to the field.
