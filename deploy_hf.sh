@@ -36,9 +36,15 @@ cp "${SRC}/models.py"                     "${STAGE_DIR}/"
 cp "${SRC}/blog_post.md"                  "${STAGE_DIR}/"
 cp "${SRC}/llm_results_kimi.json"         "${STAGE_DIR}/"
 cp "${SRC}/llm_results_claude.json"       "${STAGE_DIR}/"
+cp "${SRC}/llm_results_gpt5.json"         "${STAGE_DIR}/"
 cp "${SRC}/llm_results_llama.json"        "${STAGE_DIR}/"
+cp "${SRC}/multiseed_kimi_t9_summary.json" "${STAGE_DIR}/" 2>/dev/null || true
+cp "${SRC}/multiseed_llama_t9_summary.json" "${STAGE_DIR}/" 2>/dev/null || true
 cp "${SRC}/ablation_context_vs_prompt.json" "${STAGE_DIR}/"
 cp "${SRC}/inference_results_baseline.json" "${STAGE_DIR}/"
+cp "${SRC}/grpo_gradient_training.jsonl"  "${STAGE_DIR}/" 2>/dev/null || true
+cp "${SRC}/grpo_gradient_training_summary.json" "${STAGE_DIR}/" 2>/dev/null || true
+cp "${SRC}/grpo_7b_lora_5iter_saturation.json" "${STAGE_DIR}/" 2>/dev/null || true
 cp "${SRC}/banner.png"                    "${STAGE_DIR}/"
 cp "${SRC}/benchmark_results.png"         "${STAGE_DIR}/"
 cp "${SRC}/training_curve.png"            "${STAGE_DIR}/"
