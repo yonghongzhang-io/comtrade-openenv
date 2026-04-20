@@ -405,11 +405,17 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
   </section>
 
   <section id="training">
-    <h2>GRPO training curve</h2>
-    <p>We ran 8 iterations of GRPO-style rollouts with group-relative advantage normalization. Training signal is reward-only — no human labels, no reward model. Mean reward exceeded the rule-based baseline in <strong>6 of 8 iterations</strong>.</p>
+    <h2>GRPO training — operating envelope empirically mapped</h2>
+    <p>We ran three training configurations and found <strong>three distinct failure modes</strong>, which together map the operating envelope for GRPO on ComtradeBench:</p>
+    <ul>
+      <li><strong>Qwen2.5-1.5B, 50 iter full-parameter GRPO</strong> (Lambda A100 40GB): reward oscillates in 0.22–0.94 with <strong>no net upward trend</strong>. 1.5B lacks capacity for T9 / T10 — max_reward drops to 0.24 on batches sampling those tasks, confirming a capacity ceiling rather than sampling noise.</li>
+      <li><strong>Qwen2.5-3B + LoRA (r=16)</strong>: <strong>enters the learning window at iter 3</strong> (reward_std ≈ 0.50, KL grows 8e-6 → 5.6e-4), <strong>then collapses at iter 15</strong> — three consecutive iters produce zero valid rollouts, iter 18 recovers at mean 0.027. Textbook RL policy collapse. The window exists but is fragile without trust-region clipping.</li>
+      <li><strong>Qwen2.5-7B + LoRA (r=16)</strong>: mean reward at iter 1 is <strong>0.987</strong> — already above baseline. reward_std ≈ 0 → GRPO advantage = 0 → no gradient signal propagates. Pure saturation at the ceiling.</li>
+    </ul>
+    <p>The useful training band exists (iters 3-14 of the 3B run are empirical proof), but it is narrow. Stable training on 3B requires adaptive KL penalty, tighter trust-region clipping, or early-stop on reward-variance collapse — engineering work we did not perform in this release. This is a stronger finding than "training converged": it identifies a concrete failure mode and specifies the work required to avoid it.</p>
     <figure>
-      <img src="training_curve.png" alt="GRPO training curve"/>
-      <figcaption>GRPO training curve — reward-only optimization over 8 iterations.</figcaption>
+      <img src="training_curve.png" alt="3B + LoRA training curve showing learning then collapse"/>
+      <figcaption>Qwen2.5-3B + LoRA GRPO training. Left: reward per iter, showing iters 3-14 learning phase then iter 15 collapse (iter 18 at mean 0.027 confirms the LoRA adapter drifted into a degenerate output region). Right: loss and KL — KL rises monotonically up to iter 14, keeps rising at iter 18 (1e-3) even though mean reward has collapsed, confirming the adapter kept moving after the collapse.</figcaption>
     </figure>
   </section>
 

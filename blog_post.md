@@ -298,6 +298,19 @@ itself is correct — loss decreases smoothly, KL stays bounded — but the sign
 noise-dominated because 1.5B cannot find a stable policy. Data: `grpo_gradient_training.jsonl`,
 `grpo_gradient_training_summary.json`.
 
+**Middle point — Qwen2.5-3B + LoRA (r = 16) on Lambda A100 40GB. Learns, then collapses.**
+Iters 1-2 are curriculum warmup on T1-T8, with LoRA init producing zero-variance rollouts (by
+design). **Iters 3-14 enter the GRPO learning window**: reward_std oscillates 0.46 – 0.55, KL
+grows monotonically from 8e-6 to 5.6e-4, and the adapter is clearly receiving gradient signal.
+Mean reward bounces 0.0 – 0.73 due to heterogeneous task difficulty sampled each iter. Then
+**iter 15 hits policy collapse**: three consecutive iterations (15, 16, 17) produce ZERO valid
+rollouts — all 4 rollouts per iter fail to produce parseable tool calls. Iter 18 recovers with
+mean_reward = 0.027 and max_reward = 0.107, confirming the LoRA adapter drifted into a
+degenerate output region. This is a textbook RL policy-collapse / reward-hacking failure mode.
+The run proves ComtradeBench + GRPO on 3B *can* learn, but the window is *fragile* —
+stability requires careful KL-penalty tuning and trust-region clipping that we did not apply.
+Data: `grpo_3b_lora_collapse.json`, `grpo_gradient_training_3b.jsonl`.
+
 **Upper bound — Qwen2.5-7B + LoRA (r = 16) on Lambda A100 40GB.**
 Mean reward at iteration 1 is already **0.987** (above the 0.968 rule-based baseline). Across the
 5 completed iters, loss stays at 0 and KL stays at 0 because reward_std across each group of
@@ -306,14 +319,16 @@ when rollouts are indistinguishable, so no gradient signal propagates to the LoR
 This is not a bug. It is saturation: the base model already exceeds the task threshold, so there
 is nothing for GRPO to optimise against. Data: `grpo_7b_lora_5iter_saturation.json`.
 
-**Implication.** GRPO's useful training band on ComtradeBench sits around ~3B parameters —
-enough capacity to exceed the task threshold, small enough to leave reward variance for the
-training signal to work with. This is orthogonal to "did training converge to baseline", and is
-genuinely actionable for anyone planning to use GRPO here: **pick your base model in the 3-4B
-range; smaller wastes compute, larger leaves no gradient signal**. The training pipeline itself
-is validated by a local CPU smoke test (`grpo_smoke/`, `grpo_smoke_lora/`) — iter 1 produces
-loss = 0 (expected; π_old = π_new at step 0) and iter 2 produces kl > 0 (confirming the policy
-actually updated between rollouts).
+**Implication.** GRPO's useful training band on ComtradeBench exists — the 3B learning phase
+(iters 3-14) is empirical proof — but the band is **narrow and fragile**. All three configurations
+failed in different ways: 1.5B under-capacity / noise-dominated, 3B+LoRA learns then collapses,
+7B+LoRA saturates. This is a more actionable finding than "training converged on some model":
+it names a concrete failure mode (policy collapse at iter 15) and specifies the engineering work
+required to avoid it — adaptive KL penalty, stricter trust-region clipping, early-stop on
+reward-variance collapse, or a combination. The training pipeline itself is validated by a local
+CPU smoke test (`grpo_smoke/`, `grpo_smoke_lora/`) — iter 1 produces loss = 0 (expected;
+π_old = π_new at step 0) and iter 2 produces kl > 0 (confirming the policy actually updated
+between rollouts), so the pipeline plumbing is sound. The envelope itself is the finding.
 
 <p align="center">
   <img src="training_curve.png" width="80%" alt="GRPO Training Curve — Qwen2.5-1.5B, 50 iter, full-parameter"/>
