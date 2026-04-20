@@ -59,7 +59,7 @@ echo "=== Installing Python deps in venv ==="
     "torch>=2.3" \
     "transformers==4.45.2" \
     "accelerate>=0.30" \
-    "peft>=0.12" \
+    "peft==0.12.0" \
     "openai" \
     "requests" \
     "fastmcp" \
