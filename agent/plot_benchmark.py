@@ -52,6 +52,8 @@ def main() -> None:
     llama = load_scores(root / "llm_results_llama.json")
     gpt5_path = root / "llm_results_gpt5.json"
     gpt5 = load_scores(gpt5_path) if gpt5_path.exists() else None
+    qwen7b_path = root / "llm_results_qwen7b_zeroshot.json"
+    qwen7b = load_scores(qwen7b_path) if qwen7b_path.exists() else None
 
     task_order = list(TASK_DISPLAY.keys())
     xlabels = [TASK_DISPLAY[t] for t in task_order]
@@ -61,12 +63,14 @@ def main() -> None:
     claude_scores = [claude[t] for t in task_order]
     llama_scores = [llama[t] for t in task_order]
     gpt5_scores = [gpt5[t] for t in task_order] if gpt5 else None
+    qwen7b_scores = [qwen7b[t] for t in task_order] if qwen7b else None
 
     baseline_avg = sum(baseline_scores) / len(baseline_scores)
     kimi_avg = sum(kimi_scores) / len(kimi_scores)
     claude_avg = sum(claude_scores) / len(claude_scores)
     llama_avg = sum(llama_scores) / len(llama_scores)
     gpt5_avg = (sum(gpt5_scores) / len(gpt5_scores)) if gpt5_scores else None
+    qwen7b_avg = (sum(qwen7b_scores) / len(qwen7b_scores)) if qwen7b_scores else None
 
     # Theme — match the dark palette used on the landing page and blog
     bg = "#0f172a"
@@ -77,17 +81,22 @@ def main() -> None:
     color_kimi = "#4ade80"        # green
     color_claude = "#fbbf24"      # amber
     color_gpt5 = "#22d3ee"        # cyan
+    color_qwen7b = "#a78bfa"      # purple (open-source zero-shot)
     color_llama = "#f87171"       # red
     novel_shade = "#334155"
 
-    fig, ax = plt.subplots(figsize=(17, 7), facecolor=bg)
+    fig, ax = plt.subplots(figsize=(18, 7), facecolor=bg)
     ax.set_facecolor(bg)
 
     x = list(range(len(task_order)))
-    if gpt5_scores:
+    if qwen7b_scores and gpt5_scores:
+        n_bars = 6
+        width = 0.14
+        offsets = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]  # baseline / kimi / claude / qwen7b / gpt5 / llama
+    elif gpt5_scores:
         n_bars = 5
         width = 0.16
-        offsets = [-2, -1, 0, 1, 2]  # baseline / kimi / claude / gpt5 / llama
+        offsets = [-2, -1, 0, 1, 2]
     else:
         n_bars = 4
         width = 0.20
@@ -98,7 +107,7 @@ def main() -> None:
         if t in NOVEL_TASKS:
             ax.axvspan(i - 0.5, i + 0.5, color=novel_shade, alpha=0.35, zorder=0)
 
-    # Bars
+    # Bars — laid out in leaderboard order (baseline / kimi / claude / qwen7b / gpt5 / llama)
     bars_b = ax.bar([xi + offsets[0] * width for xi in x], baseline_scores, width,
                     label=f"Rule-Based Baseline (avg {baseline_avg:.1f})",
                     color=color_baseline, edgecolor=bg, linewidth=0.5, zorder=3)
@@ -108,27 +117,36 @@ def main() -> None:
     bars_c = ax.bar([xi + offsets[2] * width for xi in x], claude_scores, width,
                     label=f"Claude Sonnet 4.6 (avg {claude_avg:.1f})",
                     color=color_claude, edgecolor=bg, linewidth=0.5, zorder=3)
+    bars_q = None
+    if qwen7b_scores:
+        bars_q = ax.bar([xi + offsets[3] * width for xi in x], qwen7b_scores, width,
+                        label=f"Qwen2.5-7B (open-source, zero-shot) (avg {qwen7b_avg:.1f})",
+                        color=color_qwen7b, edgecolor=bg, linewidth=0.5, zorder=3)
+    bars_g = None
     if gpt5_scores:
-        bars_g = ax.bar([xi + offsets[3] * width for xi in x], gpt5_scores, width,
+        gpt5_offset_idx = 4 if qwen7b_scores else 3
+        bars_g = ax.bar([xi + offsets[gpt5_offset_idx] * width for xi in x], gpt5_scores, width,
                         label=f"GPT-5 (avg {gpt5_avg:.1f})",
                         color=color_gpt5, edgecolor=bg, linewidth=0.5, zorder=3)
     bars_l = ax.bar([xi + offsets[-1] * width for xi in x], llama_scores, width,
                     label=f"Llama 3.3 70B (avg {llama_avg:.1f})",
                     color=color_llama, edgecolor=bg, linewidth=0.5, zorder=3)
 
-    # Value labels on top of each bar (smaller + alternating height to avoid overlap)
+    # Value labels on top of each bar
     def label_bars(bars, values, color, offset=1.2):
+        if bars is None:
+            return
         for bar, v in zip(bars, values):
             ax.text(bar.get_x() + bar.get_width() / 2,
                     bar.get_height() + offset,
                     f"{v:.1f}", ha="center", va="bottom",
-                    fontsize=7.5, color=color, fontweight="bold", zorder=4)
+                    fontsize=7, color=color, fontweight="bold", zorder=4)
 
     label_bars(bars_b, baseline_scores, color_baseline)
     label_bars(bars_k, kimi_scores, color_kimi)
     label_bars(bars_c, claude_scores, color_claude)
-    if gpt5_scores:
-        label_bars(bars_g, gpt5_scores, color_gpt5)
+    label_bars(bars_q, qwen7b_scores if qwen7b_scores else [], color_qwen7b)
+    label_bars(bars_g, gpt5_scores if gpt5_scores else [], color_gpt5)
     label_bars(bars_l, llama_scores, color_llama)
 
     # Baseline reference line
@@ -185,7 +203,11 @@ def main() -> None:
     legend.get_frame().set_alpha(0.95)
 
     # Footer caption
-    if gpt5_scores:
+    if qwen7b_scores:
+        caption = (f"Closed frontier (Kimi, Claude) == open-source Qwen2.5-7B zero-shot ({qwen7b_avg:.1f}) — "
+                   f"benchmark solvable by open 7B models without any training. GPT-5 trails (reasons too long). "
+                   f"Llama bimodal across seeds.")
+    elif gpt5_scores:
         caption = ("Kimi = Claude at 97.5 (execution-oriented frontier). "
                    "GPT-5 trails at 93.2 — reasons longer but executes fewer steps. "
                    "Llama at 89.3 with T9-specific collapse. "

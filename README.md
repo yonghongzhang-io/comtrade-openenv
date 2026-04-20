@@ -38,10 +38,11 @@ tags:
 
 ### An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions
 
-What happens when **Kimi, Claude, GPT-5, and Llama** all run the same 10 API tasks against the same seeded environment and the same deterministic 6-dimensional judge?
+What happens when **Kimi, Claude, GPT-5, Llama, and open-source Qwen2.5-7B** all run the same 10 API tasks against the same seeded environment and the same deterministic 6-dimensional judge?
 
 - Kimi and Claude produce **numerically identical** scores on every single task — not close, *identical* (97.5 avg each).
-- GPT-5 scores **21.8 points lower** than both on one specific task — the one with mid-episode fault escalation. Not because it's less capable, but because it *reasons for 223 seconds across 2 tool calls* instead of *executing 7 tool calls in 8 seconds*.
+- **Open-source Qwen2.5-7B-Instruct, zero-shot (no training)**, scores **97.2 — within 0.3 of closed-source frontier**, above baseline, above GPT-5 and Llama 70B.
+- GPT-5 scores **21.8 points lower** than frontier on one specific task — the one with mid-episode fault escalation. Not because it's less capable, but because it *reasons for 223 seconds across 2 tool calls* instead of *executing 7 tool calls in 8 seconds*.
 - Llama is *bimodal* on that same task, spanning 18.7 to 97.5 across seeds — the discriminative signal is **reliability**, not capability.
 
 And when we try to **GRPO-train** a Qwen2.5-3B on the benchmark? It enters the learning window at iter 3, trains cleanly for 14 iterations, then **policy-collapses at iter 15** into a degenerate output region.
@@ -55,8 +56,8 @@ ComtradeBench surfaces these failure modes because it measures **execution relia
 
 > **For judges — 30-second summary**:
 > - Ten-task OpenEnv benchmark for LLM agent reliability under adversarial API conditions (429/500, pagination drift, duplicates, totals traps, within-episode fault escalation, constrained budgets).
-> - **Four frontier LLMs evaluated** (Kimi / Claude / GPT-5 / Llama) + **three Qwen2.5 sizes trained** with GRPO (1.5B full-param, 3B + LoRA, 7B + LoRA).
-> - **Three independent discriminative signals**: (1) T9 separates execution-oriented from reasoning-oriented frontier (Kimi/Claude 97.5 vs GPT-5 75.7), (2) Kimi = Claude numerically identical → ceiling saturation, (3) Llama T9 bimodal → sub-frontier is about reliability not capability.
+> - **Five LLMs evaluated cross-model**: Kimi Moonshot V1-128k, Claude Sonnet 4.6, **open-source Qwen2.5-7B-Instruct (zero-shot)**, GPT-5, Llama 3.3 70B. Plus three Qwen2.5 sizes trained with GRPO (1.5B full-param, 3B + LoRA, 7B + LoRA).
+> - **Four independent findings**: (1) T9 separates execution-oriented from reasoning-oriented frontier (Kimi/Claude 97.5 vs GPT-5 75.7), (2) Kimi = Claude numerically identical → ceiling saturation, (3) Llama T9 bimodal → sub-frontier is about reliability not capability, (4) **⭐ Open-source Qwen2.5-7B zero-shot matches closed frontier (97.2 vs 97.5)** — benchmark solvable by well-instructed open 7B without any training.
 > - **GRPO operating envelope mapped at three points** (under-capacity / learn-then-collapse / saturation) — an actionable finding, not a "we trained something" claim.
 > - Results live and reproducible in the HF Docker Space.
 
@@ -79,36 +80,30 @@ The ten tasks cover pagination, deduplication, 429 / 500 retries, non-determinis
 | Agent | Avg (T1-T10) | T9 | Notes |
 |---|---:|---:|---|
 | Rule-based baseline | 96.8 | 96.9 | deterministic, no LLM |
-| **Kimi Moonshot V1-128k** | **97.5** | **97.5** | multi-seed std = 0.0 across 5 seeds |
-| **Claude Sonnet 4.6** | **97.5** | **97.5** | numerically identical to Kimi on every task |
+| **Kimi Moonshot V1-128k** | **97.5** | **97.5** | closed-source frontier, multi-seed std = 0.0 |
+| **Claude Sonnet 4.6** | **97.5** | **97.5** | closed-source frontier, identical to Kimi |
+| **Qwen2.5-7B-Instruct** ⭐ | **97.2** | **97.5** | **open-source, zero-shot** (no fine-tuning, no training) |
 | **GPT-5** | 93.2 | **75.7** | reasoning-oriented: 2 steps in 223 s vs Kimi's 7 steps in 8 s |
 | Llama 3.3 70B (Groq) | 89.3 | 18.7–97.5† | bimodal across seeds |
 
 †  Llama T9 is **bimodal**: the published seed-42 run hit 18.7, multi-seed re-run produced {97.5, 94.5, …} — the low number and the near-frontier numbers both reproduce. Raw per-seed data in `multiseed_llama_t9_summary.json`.
 
-### Three independent discriminative signals
+**⭐ Open-source parity**: Qwen2.5-7B-Instruct, run *zero-shot* (no training, no fine-tuning), via Together AI → **97.2 / 100 avg, 97.5 on T9** — within 0.3 points of closed-source frontier (Kimi, Claude), above baseline, and **above GPT-5 by 4.0 points**. ComtradeBench is solvable by mid-size open-weights models at zero training cost. `llm_results_qwen7b_zeroshot.json`.
+
+### Four independent findings from the cross-model evaluation
 
 1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi and Claude execute T9 in ~8 s across 7 tool calls and score 97.5. GPT-5 "thinks" for 223 s across 2 tool calls and scores 75.7 — a **21.8-point gap between frontier models** that a pass/fail benchmark would miss entirely. The breakdown tells the story: GPT-5's Efficiency drops to 6/15 (budget burned in reasoning-time) and Observability to ~4/10 (2 steps leave no audit trail).
-2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores on all 10 tasks. Same seeded environment, same deterministic judge, same solve-path → same score. ComtradeBench today cannot fine-rank two execution-optimised frontier models against each other.
-3. **Sub-frontier is high-variance, not uniformly weak.** Kimi T9 std = 0.0 across 5 seeds. Llama T9 spans 18.7 – 97.5. The discriminative signal is *reliability*, not capability: Llama can sometimes match frontier, just not consistently. Production agent deployment needs the consistent half.
+2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores on all 10 tasks. Same seeded environment, same deterministic judge, same solve-path → same score.
+3. **Sub-frontier is high-variance, not uniformly weak.** Kimi T9 std = 0.0 across 5 seeds. Llama T9 spans 18.7 – 97.5. The discriminative signal is *reliability*, not capability: Llama can sometimes match frontier, just not consistently.
+4. **⭐ Open-source 7B closes the gap to frontier without training.** Qwen2.5-7B-Instruct, zero-shot (no fine-tuning, no GRPO), scores 97.2 — within 0.3 points of Kimi/Claude, above GPT-5 and Llama 3.3 70B. This changes the headline: **the benchmark is not "can a closed frontier LLM solve this"; it's "can an agent execute reliably", and a well-instructed open 7B matches that bar**. It also validates the GRPO saturation finding — 7B genuinely is at ceiling for this benchmark, which is why GRPO fine-tuning provides no gradient signal.
 
 ### GRPO training — operating envelope empirically mapped at three points
 
-```
-                                    ⚠️ Qwen2.5-7B + LoRA
-                                       saturates at init
-                                       (reward_std ≈ 0 → no gradient)
-                                      /
-                        🟢 Qwen2.5-3B + LoRA
-                           learns 14 iter (kl 8e-6 → 5.6e-4)
-                           then policy-collapses at iter 15
-                          /
-            🟡 Qwen2.5-1.5B (50 iter full-param)
-               noise-dominated, no net upward trend
-               (reward 0.22–0.94, under-capacity on T9/T10)
-```
+![GRPO Operating Envelope — three failure modes](grpo_envelope.png)
 
-**Reading the triangle**: the useful GRPO training band exists (iters 3-14 of the 3B run are empirical proof — real reward variance, monotonically growing KL), but it is **narrow and fragile**. Three configurations, three distinct failure modes. Stable training on the 3B point requires adaptive KL penalty, tighter trust-region clipping, or early-stop on reward-variance collapse — engineering work we did not perform in this release. This is a more actionable finding than "training converged on some model": it names concrete failure modes a practitioner would hit.
+*Three training configurations, three distinct failure modes. 1.5B full-param: under-capacity, reward oscillates 0.22–0.94 with no trend. 3B + LoRA: learns cleanly for 14 iterations (KL grows monotonically 8e-6 → 5.6e-4), then policy-collapses at iter 15. 7B + LoRA: mean reward 0.987 at iter 1, already above baseline — GRPO advantage signal near zero, no gradient propagates.*
+
+**Reading the envelope**: the useful GRPO training band exists (iters 3-14 of the 3B run are empirical proof — real reward variance, monotonically growing KL), but it is **narrow and fragile**. Stable training on the 3B point requires adaptive KL penalty, tighter trust-region clipping, or early-stop on reward-variance collapse — engineering work we did not perform in this release. This is a more actionable finding than "training converged on some model": it names concrete failure modes a practitioner would hit.
 
 All training data is committed as artifacts: `grpo_gradient_training.jsonl` (1.5B per-iter metrics), `grpo_gradient_training_3b.jsonl` (3B per-iter, 15 entries), `grpo_3b_lora_collapse.json` (3B interpretation), `grpo_7b_lora_5iter_saturation.json` (7B interpretation). The same environment code runs in-process during GRPO rollouts and as the deployed Docker service during eval — zero divergence.
 
@@ -410,13 +405,14 @@ Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks*
 gap on T4/T5 Robustness (12/15, not 15/15) is a scoring sub-criterion explored in the ablation
 below, not a silent-retry failure.
 
-### Cross-model comparison — four LLMs, three independent discriminative signals
+### Cross-model comparison — five LLMs, four independent findings
 
 | Model | Avg (T1-T10) | T1-T8 avg | T9 score | T10 score |
 |---|---:|---:|---:|---:|
 | Rule-based baseline | 96.8 | 96.5 | 96.9 | 98.0 |
 | **Kimi Moonshot V1-128k** | **97.5** | **97.4** | **97.5** (std 0.0 across 5 seeds) | **98.7** |
 | **Claude Sonnet 4.6** | **97.5** | **97.4** | **97.5** | **98.7** |
+| **Qwen2.5-7B-Instruct (open, zero-shot)** ⭐ | **97.2** | **97.2** | **97.5** | **98.7** |
 | **GPT-5** | 93.2 | 95.0 | **75.7** | 95.7 |
 | Llama 3.3 70B (Groq) | 89.3 | 97.4 | 18.7 – 97.5 (bimodal†) | 95.7 |
 

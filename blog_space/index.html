@@ -336,8 +336,8 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
       <figcaption>Rule-based baseline vs. Kimi LLM agent across the 10-task suite.</figcaption>
     </figure>
 
-    <h3>Cross-model comparison — four LLMs, three independent discriminative signals</h3>
-    <p>Four LLMs, same agent loop, same default prompt, seed 42 baseline plus 5-seed multi-run on T9:</p>
+    <h3>Cross-model comparison — five LLMs, four independent findings</h3>
+    <p>Five LLMs, same agent loop, same default prompt, seed 42 baseline plus 5-seed multi-run on T9:</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Model</th><th>T1-T8 avg</th><th>T9 score</th><th>T10 score</th><th>T1-T10 avg</th></tr></thead>
@@ -345,11 +345,13 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
           <tr><td>Rule-based baseline</td><td class="num">96.5</td><td class="num">96.9</td><td class="num">98.0</td><td class="num">96.8</td></tr>
           <tr><td><strong>Kimi Moonshot V1-128k</strong></td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong> (std 0.0)</td><td class="num"><strong>98.7</strong></td><td class="num"><strong>97.5</strong></td></tr>
           <tr><td><strong>Claude Sonnet 4.6</strong></td><td class="num"><strong>97.4</strong></td><td class="num"><strong>97.5</strong></td><td class="num"><strong>98.7</strong></td><td class="num"><strong>97.5</strong></td></tr>
+          <tr><td><strong>Qwen2.5-7B-Instruct ⭐ (open, zero-shot)</strong></td><td class="num" style="color:#a78bfa"><strong>97.2</strong></td><td class="num" style="color:#a78bfa"><strong>97.5</strong></td><td class="num" style="color:#a78bfa"><strong>98.7</strong></td><td class="num" style="color:#a78bfa"><strong>97.2</strong></td></tr>
           <tr><td><strong>GPT-5</strong></td><td class="num">95.0</td><td class="num" style="color:#22d3ee"><strong>75.7</strong></td><td class="num">95.7</td><td class="num">93.2</td></tr>
           <tr><td>Llama 3.3 70B</td><td class="num">97.4</td><td class="num" style="color:#f87171">18.7 – 97.5†</td><td class="num">95.7</td><td class="num">89.3</td></tr>
         </tbody>
       </table>
     </div>
+    <p style="color:#a78bfa; font-weight:600;">⭐ Open-source parity: Qwen2.5-7B-Instruct, <em>zero-shot</em> (no training, no fine-tuning), via Together AI → <strong>97.2 avg, 97.5 on T9</strong> — within 0.3 points of closed-source frontier, above baseline, above GPT-5 by 4.0 points. Benchmark solvable by mid-size open-weights models without training.</p>
     <p style="font-size:.82rem; color:#94a3b8;">† Llama T9 is <em>bimodal</em>: the original seed-42 run hit 18.7, but re-runs on {42, 137} produced {97.5, 94.5}. The correct statement is <em>Llama on T9 is high-variance</em>, not <em>Llama collapses uniformly</em>.</p>
 
     <p><strong>Three independent signals.</strong></p>
@@ -414,8 +416,8 @@ submit_results(...)     →  {reward, score, breakdown}</code></pre>
     </ul>
     <p>The useful training band exists (iters 3-14 of the 3B run are empirical proof), but it is narrow. Stable training on 3B requires adaptive KL penalty, tighter trust-region clipping, or early-stop on reward-variance collapse — engineering work we did not perform in this release. This is a stronger finding than "training converged": it identifies a concrete failure mode and specifies the work required to avoid it.</p>
     <figure>
-      <img src="training_curve.png" alt="3B + LoRA training curve showing learning then collapse"/>
-      <figcaption>Qwen2.5-3B + LoRA GRPO training. Left: reward per iter, showing iters 3-14 learning phase then iter 15 collapse (iter 18 at mean 0.027 confirms the LoRA adapter drifted into a degenerate output region). Right: loss and KL — KL rises monotonically up to iter 14, keeps rising at iter 18 (1e-3) even though mean reward has collapsed, confirming the adapter kept moving after the collapse.</figcaption>
+      <img src="grpo_envelope.png" alt="GRPO operating envelope: three failure modes"/>
+      <figcaption>GRPO operating envelope on ComtradeBench. Left: Qwen2.5-1.5B, 50 iter, under-capacity oscillation. Middle: Qwen2.5-3B + LoRA, learns iters 3-14 then collapses at iter 15 (policy collapse). Right: Qwen2.5-7B + LoRA, saturated at iter 1 (mean 0.987), no gradient signal. The useful training band exists but is narrow and fragile.</figcaption>
     </figure>
   </section>
 

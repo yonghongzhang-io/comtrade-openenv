@@ -1,0 +1,185 @@
+{
+  "model": "Qwen/Qwen2.5-7B-Instruct-Turbo",
+  "api_url": "https://api.together.xyz/v1",
+  "provider": "Together AI",
+  "note": "Open-source Qwen2.5-7B-Instruct evaluated ZERO-SHOT (no fine-tuning, no GRPO training). Same agent loop and default prompt as Kimi/Claude/GPT-5/Llama runs. seed=42, temperature=0.0. Run 2026-04-20 via Together AI API.",
+  "seed": 42,
+  "tasks_run": [
+    "T1_single_page",
+    "T2_multi_page",
+    "T3_duplicates",
+    "T4_rate_limit_429",
+    "T5_server_error_500",
+    "T6_page_drift",
+    "T7_totals_trap",
+    "T8_mixed_faults",
+    "T9_adaptive_adversary",
+    "T10_constrained_budget"
+  ],
+  "average_score": 97.16,
+  "average_reward": 0.9716,
+  "results": [
+    {
+      "task_id": "T1_single_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 3,
+      "elapsed_s": 2.1
+    },
+    {
+      "task_id": "T2_multi_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 7,
+      "elapsed_s": 4.0
+    },
+    {
+      "task_id": "T3_duplicates",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 2.4
+    },
+    {
+      "task_id": "T4_rate_limit_429",
+      "reward": 0.957,
+      "score": 95.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 4.0
+    },
+    {
+      "task_id": "T5_server_error_500",
+      "reward": 0.963,
+      "score": 96.3,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 9.34
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 4.1
+    },
+    {
+      "task_id": "T6_page_drift",
+      "reward": 0.947,
+      "score": 94.7,
+      "breakdown": {
+        "correctness": 26.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 2.5
+    },
+    {
+      "task_id": "T7_totals_trap",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 18.5
+    },
+    {
+      "task_id": "T8_mixed_faults",
+      "reward": 0.939,
+      "score": 93.9,
+      "breakdown": {
+        "correctness": 25.2,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 3,
+      "elapsed_s": 39.5
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.975,
+      "score": 97.5,
+      "breakdown": {
+        "correctness": 28.88,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 7,
+      "elapsed_s": 4.4
+    },
+    {
+      "task_id": "T10_constrained_budget",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 10,
+      "elapsed_s": 6.0
+    }
+  ],
+  "key_finding": "Open-source Qwen2.5-7B-Instruct, zero-shot (no training), scores 97.2 / 100 on ComtradeBench — within 0.3 points of closed-source frontier (Kimi 97.5, Claude 97.5), 4.0 points above GPT-5 (93.2), and 7.9 points above Llama 3.3 70B (89.3). On T9 (the execution-vs-reasoning discriminator) Qwen2.5-7B matches frontier at 97.5. This validates: (a) ComtradeBench is solvable by mid-size open-weights models, (b) the benchmark measures execution reliability at a level where a good open 7B equals a closed frontier model, (c) our GRPO saturation finding at 7B is NOT an artifact — the 7B model genuinely is at ceiling for this benchmark.",
+  "generated_at": "2026-04-20T13:14"
+}
