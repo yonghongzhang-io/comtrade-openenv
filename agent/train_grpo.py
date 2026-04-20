@@ -412,18 +412,43 @@ def train(args: argparse.Namespace) -> None:
         model.gradient_checkpointing_enable()
         model.eval()
 
-        # Reference model (frozen copy for KL divergence)
-        from copy import deepcopy
-        ref_model = deepcopy(model)
-        for p in ref_model.parameters():
-            p.requires_grad_(False)
-        ref_model.eval()
-
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=args.lr,
-            weight_decay=0.01,
-        )
+        # ---- LoRA path: single base model acts as both policy and ref ----
+        # With LoRA we wrap the base model in a PeftModel with trainable adapter.
+        # `peft_model.disable_adapter()` context manager gives us the base-model
+        # forward pass (= ref policy) without a separate deepcopy — saves 14 GB
+        # for a 7B model on a 40 GB A100. Only the LoRA adapter gets gradients.
+        if args.use_lora:
+            from peft import LoraConfig, get_peft_model, TaskType
+            lora_cfg = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                r=args.lora_r,
+                lora_alpha=args.lora_alpha,
+                lora_dropout=args.lora_dropout,
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+                bias="none",
+            )
+            model = get_peft_model(model, lora_cfg)
+            model.print_trainable_parameters()
+            # Keep pipeline.model pointing at the peft-wrapped model
+            llm._pipe.model = model
+            ref_model = None  # use disable_adapter() instead of deep-copy
+            optimizer = torch.optim.AdamW(
+                (p for p in model.parameters() if p.requires_grad),
+                lr=args.lr,
+                weight_decay=0.01,
+            )
+        else:
+            # Full-parameter path: keep the deep-copy ref model.
+            from copy import deepcopy
+            ref_model = deepcopy(model)
+            for p in ref_model.parameters():
+                p.requires_grad_(False)
+            ref_model.eval()
+            optimizer = torch.optim.AdamW(
+                model.parameters(),
+                lr=args.lr,
+                weight_decay=0.01,
+            )
         use_gradient_update = True
 
     elif args.api_url:
@@ -618,6 +643,9 @@ def _gradient_step(
     # --- Step 1: collect old_log_probs and ref_log_probs with no_grad ---
     # old_log_probs = π_old (current policy before this gradient step).
     # Must be computed BEFORE the optimizer step so ratio != 1.
+    # If model is a PeftModel (LoRA), we use disable_adapter() for ref — this
+    # routes through the frozen base weights without holding a separate copy.
+    is_peft = ref_model is None and hasattr(model, "disable_adapter")
     with torch.no_grad():
         with torch.cuda.amp.autocast(enabled=(device == "cuda")):
             old_outputs = model(input_ids=input_ids, attention_mask=attention_mask)
@@ -626,7 +654,11 @@ def _gradient_step(
             old_token_log_probs = old_lp_full.gather(-1, labels.unsqueeze(-1)).squeeze(-1)
             old_token_log_probs = (old_token_log_probs * comp_mask_shifted).detach()
 
-            ref_outputs = ref_model(input_ids=input_ids, attention_mask=attention_mask)
+            if is_peft:
+                with model.disable_adapter():
+                    ref_outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            else:
+                ref_outputs = ref_model(input_ids=input_ids, attention_mask=attention_mask)
             ref_logits = ref_outputs.logits[:, :-1, :]
             ref_lp_full = torch.nn.functional.log_softmax(ref_logits, dim=-1)
             ref_token_log_probs = ref_lp_full.gather(-1, labels.unsqueeze(-1)).squeeze(-1)
@@ -690,6 +722,18 @@ def parse_args() -> argparse.Namespace:
                    help="If >0, warm up on T1-T8 before introducing T9/T10 (default: 0)")
     p.add_argument("--seed", type=int, default=42,
                    help="Global random seed for reproducible sampling (default: 42)")
+
+    # LoRA (PEFT) — parameter-efficient fine-tuning
+    p.add_argument("--use-lora", action="store_true",
+                   help="Wrap model in PEFT LoraConfig; only LoRA params get gradients. "
+                        "Enables training 7B+ models on 40 GB GPUs and avoids a separate "
+                        "ref-model deep-copy (uses disable_adapter() instead).")
+    p.add_argument("--lora-r", type=int, default=16,
+                   help="LoRA rank (default: 16)")
+    p.add_argument("--lora-alpha", type=int, default=32,
+                   help="LoRA alpha (default: 32)")
+    p.add_argument("--lora-dropout", type=float, default=0.05,
+                   help="LoRA dropout (default: 0.05)")
 
     # GRPO hyperparameters
     p.add_argument("--num-iterations", type=int, default=200,

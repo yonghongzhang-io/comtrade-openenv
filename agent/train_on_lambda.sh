@@ -1,8 +1,9 @@
 #!/bin/bash
 # ============================================================================
-# Lambda Labs GRPO training runbook — Qwen2.5-1.5B on A100 40GB
-# (Default model chosen for A100 40GB compatibility. Override with
-#  TRAIN_MODEL=Qwen/Qwen2.5-3B-Instruct if you have 80GB GPU.)
+# Lambda Labs GRPO training runbook — Qwen2.5-7B-Instruct + LoRA on A100 40GB
+# (LoRA path uses disable_adapter() for ref policy — no deep-copy ref model —
+#  which means 7B training fits in ~24 GB on A100 40GB. Override TRAIN_MODEL
+#  if you want a different base.)
 # ============================================================================
 #
 # Prerequisite on Lambda instance (H100 80GB recommended):
@@ -33,28 +34,58 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
 fi
 nvidia-smi | head -20
 
-# --- 1. Install deps (idempotent) -------------------------------------------
-echo "=== Installing Python deps ==="
-pip install --quiet --upgrade pip
-pip install --quiet \
-    torch \
-    transformers \
-    accelerate \
-    peft \
-    trl \
-    openai \
-    requests \
-    fastmcp \
-    fastapi \
-    uvicorn \
-    pydantic \
-    openenv-core
+# --- 0b. Ensure OpenEnv framework is cloned adjacent to this repo -----------
+# env_client.py searches parent dirs for OpenEnv/src/. Lambda Stack ships
+# openenv-core via pip but env_client specifically looks for the source tree.
+REPO_PARENT="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ ! -d "${REPO_PARENT}/OpenEnv/src" ]; then
+    echo "=== Cloning OpenEnv framework adjacent to this repo ==="
+    (cd "${REPO_PARENT}" && git clone --depth 1 https://github.com/meta-pytorch/OpenEnv)
+fi
+
+# --- 1. Create clean venv to avoid Lambda Stack package conflicts -----------
+# Lambda Stack 22.04 ships with system sklearn/scipy/numpy that import-clash
+# with user-site transformers 4.45. A clean venv sidesteps the whole mess.
+VENV_PATH="${HOME}/venv"
+if [ ! -f "${VENV_PATH}/bin/python" ]; then
+    echo "=== Creating clean venv at ${VENV_PATH} ==="
+    sudo apt-get install -y python3.10-venv >/dev/null 2>&1 || true
+    python3.10 -m venv "${VENV_PATH}"
+fi
+
+echo "=== Installing Python deps in venv ==="
+"${VENV_PATH}/bin/pip" install --quiet --upgrade pip setuptools wheel
+"${VENV_PATH}/bin/pip" install --quiet \
+    "torch>=2.3" \
+    "transformers==4.45.2" \
+    "accelerate>=0.30" \
+    "peft>=0.12" \
+    "openai" \
+    "requests" \
+    "fastmcp" \
+    "fastapi" \
+    "uvicorn" \
+    "pydantic" \
+    "numpy>=1.24,<2.0" \
+    "scipy" \
+    "scikit-learn"
 
 # Install the env package itself so `import server`, `import models` work.
-pip install --quiet -e .
+"${VENV_PATH}/bin/pip" install --quiet -e .
+
+# Sanity check: all imports must work before we launch training
+"${VENV_PATH}/bin/python" -c "
+from transformers import Qwen2ForCausalLM
+from peft import LoraConfig, get_peft_model
+import torch
+print(f'torch={torch.__version__}  cuda={torch.cuda.is_available()}  gpu_mem={torch.cuda.get_device_properties(0).total_memory // (1024**3)}GiB')
+print('Qwen2ForCausalLM + peft imports ok')
+"
 
 # --- 2. Training config -----------------------------------------------------
-MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
+MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+USE_LORA="${TRAIN_USE_LORA:-1}"
+LORA_R="${TRAIN_LORA_R:-16}"
 ITERS="${TRAIN_ITERS:-50}"
 BATCH="${TRAIN_BATCH:-4}"
 GROUP="${TRAIN_GROUP:-4}"
@@ -70,7 +101,14 @@ echo "max_steps=${MAX_STEPS}  seqlen=${SEQLEN}  out=${OUT_DIR}"
 echo ""
 
 # --- 3. Launch training -----------------------------------------------------
-python agent/train_grpo.py \
+LORA_FLAGS=""
+if [ "${USE_LORA}" = "1" ]; then
+    LORA_FLAGS="--use-lora --lora-r ${LORA_R}"
+    echo "LoRA: enabled (r=${LORA_R})"
+fi
+
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+"${VENV_PATH}/bin/python" agent/train_grpo.py \
     --hf-model "${MODEL}" \
     --num-iterations "${ITERS}" \
     --batch-size "${BATCH}" \
@@ -82,12 +120,13 @@ python agent/train_grpo.py \
     --save-every 25 \
     --curriculum-warmup-iters 5 \
     --temperature 0.7 \
+    ${LORA_FLAGS} \
     2>&1 | tee "${OUT_DIR}.log"
 
 # --- 4. Post-process: summary JSON for easy integration ---------------------
 echo ""
 echo "=== Post-processing ==="
-python - <<PY
+"${VENV_PATH}/bin/python" - <<PY
 import json, time
 from pathlib import Path
 from statistics import mean, stdev
