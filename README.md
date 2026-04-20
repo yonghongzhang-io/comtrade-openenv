@@ -38,19 +38,37 @@ tags:
 
 ### An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions
 
-ComtradeBench is a ten-task [OpenEnv](https://github.com/meta-pytorch/OpenEnv) environment that
-measures **execution reliability** of LLM agents in a realistic API workflow. The domain is trade
-data retrieval; the benchmark is about whether an agent can handle the failure modes that appear in
-every production API at scale — pagination drift, duplicate records, transient errors, misleading
-summary rows, and constrained request budgets.
+What happens when **Kimi, Claude, GPT-5, and Llama** all run the same 10 API tasks against the same seeded environment and the same deterministic 6-dimensional judge?
 
-The environment is **adversarial by design**: fault injection, non-stationary dynamics, and
-multi-dimensional scoring reward correct execution, not fluent output.
+- Kimi and Claude produce **numerically identical** scores on every single task — not close, *identical* (97.5 avg each).
+- GPT-5 scores **21.8 points lower** than both on one specific task — the one with mid-episode fault escalation. Not because it's less capable, but because it *reasons for 223 seconds across 2 tool calls* instead of *executing 7 tool calls in 8 seconds*.
+- Llama is *bimodal* on that same task, spanning 18.7 to 97.5 across seeds — the discriminative signal is **reliability**, not capability.
+
+And when we try to **GRPO-train** a Qwen2.5-3B on the benchmark? It enters the learning window at iter 3, trains cleanly for 14 iterations, then **policy-collapses at iter 15** into a degenerate output region.
+
+ComtradeBench surfaces these failure modes because it measures **execution reliability** — not correctness, not reasoning, not fluency. The benchmark is adversarial by design: fault injection, non-stationary dynamics, and multi-dimensional scoring that reward agents who *do the job right*, not agents who *return something plausible*.
 
 **AgentBeats Phase 2 — OpenEnv Challenge** | Author: MateFin
 [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) ·
 [Env Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) ·
 [Blog](https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog)
+
+> **For judges — 30-second summary**:
+> - Ten-task OpenEnv benchmark for LLM agent reliability under adversarial API conditions (429/500, pagination drift, duplicates, totals traps, within-episode fault escalation, constrained budgets).
+> - **Four frontier LLMs evaluated** (Kimi / Claude / GPT-5 / Llama) + **three Qwen2.5 sizes trained** with GRPO (1.5B full-param, 3B + LoRA, 7B + LoRA).
+> - **Three independent discriminative signals**: (1) T9 separates execution-oriented from reasoning-oriented frontier (Kimi/Claude 97.5 vs GPT-5 75.7), (2) Kimi = Claude numerically identical → ceiling saturation, (3) Llama T9 bimodal → sub-frontier is about reliability not capability.
+> - **GRPO operating envelope mapped at three points** (under-capacity / learn-then-collapse / saturation) — an actionable finding, not a "we trained something" claim.
+> - Results live and reproducible in the HF Docker Space.
+
+---
+
+## Why this benchmark exists
+
+Most API-task benchmarks (ToolBench, τ-bench, BFCL, API-Bank) evaluate whether an agent retrieves the *correct answer* from a *clean* API. Production APIs are rarely clean. Rate-limiters fire, pages reshuffle, duplicates appear, totals rows contaminate aggregates, request budgets bite. A pretrained LLM that nails the clean benchmark can still break in production because the *execution behaviour* was never tested — it was optimised for right answers, not for handling adversity.
+
+We built ComtradeBench to close that gap. The adversarial bits are *in the environment*, not in the prompts or the labels, so an agent cannot route around them by rephrasing. The scoring is *six-dimensional* (correctness, completeness, robustness, efficiency, data quality, observability) so fluent-looking output from broken execution gets penalised on the five dimensions it fails.
+
+The ten tasks cover pagination, deduplication, 429 / 500 retries, non-deterministic page ordering, totals-row filtering, mixed-fault combinations, **within-episode fault escalation (T9)** where the environment gets harder as the agent makes progress, and **constrained request budgets (T10)** where the agent has half the normal quota. The rule-based baseline scores 96.8 / 100 — a ceiling that a competent rule-following agent *should* clear but that we found is a non-trivial target for LLMs without careful prompting.
 
 ---
 
@@ -61,30 +79,38 @@ multi-dimensional scoring reward correct execution, not fluent output.
 | Agent | Avg (T1-T10) | T9 | Notes |
 |---|---:|---:|---|
 | Rule-based baseline | 96.8 | 96.9 | deterministic, no LLM |
-| **Kimi Moonshot V1-128k** | **97.5** | **97.5** | multi-seed std = 0.0 across 5 seeds (see Results) |
+| **Kimi Moonshot V1-128k** | **97.5** | **97.5** | multi-seed std = 0.0 across 5 seeds |
 | **Claude Sonnet 4.6** | **97.5** | **97.5** | numerically identical to Kimi on every task |
-| **GPT-5** | 93.2 | **75.7** | reasoning-oriented: uses 2 steps in 223s instead of 7 steps in 8s |
-| Llama 3.3 70B (Groq) | 89.3 | 18.7–97.5† | bimodal across seeds (see Results) |
+| **GPT-5** | 93.2 | **75.7** | reasoning-oriented: 2 steps in 223 s vs Kimi's 7 steps in 8 s |
+| Llama 3.3 70B (Groq) | 89.3 | 18.7–97.5† | bimodal across seeds |
 
-†  Llama T9 result is **bimodal**: published value (18.7) and multi-seed re-runs (97.5, 94.5) both reproduce. Raw seeds in `multiseed_llama_t9_summary.json`.
+†  Llama T9 is **bimodal**: the published seed-42 run hit 18.7, multi-seed re-run produced {97.5, 94.5, …} — the low number and the near-frontier numbers both reproduce. Raw per-seed data in `multiseed_llama_t9_summary.json`.
 
 ### Three independent discriminative signals
 
-1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi / Claude execute T9 in ~8 s / 7 steps and score 97.5. GPT-5 "thinks" for 223 s across 2 steps and scores 75.7 — a **21.8-point gap** between frontier models that a pass/fail benchmark would miss.
-2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores across all 10 tasks. The benchmark currently cannot fine-rank frontier-class models against each other; it measures *execution reliability*, not raw capability ceiling.
-3. **Sub-frontier models are high-variance, not uniformly weak.** Llama T9 scores span 18.7 → 97.5 depending on seed and hosted non-determinism. The discriminative signal is *reliability*, not capability.
+1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi and Claude execute T9 in ~8 s across 7 tool calls and score 97.5. GPT-5 "thinks" for 223 s across 2 tool calls and scores 75.7 — a **21.8-point gap between frontier models** that a pass/fail benchmark would miss entirely. The breakdown tells the story: GPT-5's Efficiency drops to 6/15 (budget burned in reasoning-time) and Observability to ~4/10 (2 steps leave no audit trail).
+2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores on all 10 tasks. Same seeded environment, same deterministic judge, same solve-path → same score. ComtradeBench today cannot fine-rank two execution-optimised frontier models against each other.
+3. **Sub-frontier is high-variance, not uniformly weak.** Kimi T9 std = 0.0 across 5 seeds. Llama T9 spans 18.7 – 97.5. The discriminative signal is *reliability*, not capability: Llama can sometimes match frontier, just not consistently. Production agent deployment needs the consistent half.
 
 ### GRPO training — operating envelope empirically mapped at three points
 
-We ran three training configurations and found three distinct failure modes:
+```
+                                    ⚠️ Qwen2.5-7B + LoRA
+                                       saturates at init
+                                       (reward_std ≈ 0 → no gradient)
+                                      /
+                        🟢 Qwen2.5-3B + LoRA
+                           learns 14 iter (kl 8e-6 → 5.6e-4)
+                           then policy-collapses at iter 15
+                          /
+            🟡 Qwen2.5-1.5B (50 iter full-param)
+               noise-dominated, no net upward trend
+               (reward 0.22–0.94, under-capacity on T9/T10)
+```
 
-- **Qwen2.5-1.5B, 50 iter full-parameter GRPO**: reward oscillates in 0.22–0.94 range with **no net upward trend** — the small model lacks stable capacity for T9 / T10, so reward is dominated by task-sampling noise. `grpo_gradient_training.jsonl`.
-- **Qwen2.5-3B + LoRA (r=16), 14 + 3-skipped + 1 iter = 18 total**: **enters the learning window at iter 3** (reward_std ≈ 0.50, KL grows from 8e-6 to 5.6e-4), **then policy-collapses at iter 15** — three consecutive iterations produced **zero valid rollouts**, and iter 18 recovered with mean reward **0.027** (max 0.107), confirming the LoRA adapter drifted into a degenerate output region. Textbook RL policy collapse / reward hacking. `grpo_3b_lora_collapse.json`, `grpo_gradient_training_3b.jsonl`.
-- **Qwen2.5-7B + LoRA (r=16), 5 iter**: reward saturates at init (mean ≈ 0.97). reward_std ≈ 0 across rollouts → GRPO advantage = 0 → no gradient signal. `grpo_7b_lora_5iter_saturation.json`.
+**Reading the triangle**: the useful GRPO training band exists (iters 3-14 of the 3B run are empirical proof — real reward variance, monotonically growing KL), but it is **narrow and fragile**. Three configurations, three distinct failure modes. Stable training on the 3B point requires adaptive KL penalty, tighter trust-region clipping, or early-stop on reward-variance collapse — engineering work we did not perform in this release. This is a more actionable finding than "training converged on some model": it names concrete failure modes a practitioner would hit.
 
-**Implication**: GRPO's useful training band on ComtradeBench exists (the 3B learning phase is proof) but is **narrow and fragile**. Stable training on the 3B point requires adaptive KL penalty, stricter trust-region clipping, or early-stop on reward-variance collapse — none of which we had in this release. This is a more actionable finding than "training converged on some model": it names a concrete failure mode (collapse at iter 15) and specifies the engineering work required to avoid it.
-
-The same environment code runs in-process during GRPO rollouts and as the deployed Docker service during eval. Zero divergence. Context-vs-prompt ablation on T4/T5 is in the Results section below.
+All training data is committed as artifacts: `grpo_gradient_training.jsonl` (1.5B per-iter metrics), `grpo_gradient_training_3b.jsonl` (3B per-iter, 15 entries), `grpo_3b_lora_collapse.json` (3B interpretation), `grpo_7b_lora_5iter_saturation.json` (7B interpretation). The same environment code runs in-process during GRPO rollouts and as the deployed Docker service during eval — zero divergence.
 
 ---
 
