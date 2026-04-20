@@ -193,6 +193,7 @@ Four LLMs, same agent loop, same default prompt, seed 42 baseline plus 5-seed mu
 | Rule-based baseline | 96.5 | 96.9 | 98.0 | 96.8 |
 | **Kimi Moonshot V1-128k** | **97.4** | **97.5 (std 0.0 across 5 seeds)** | **98.7** | **97.5** |
 | **Claude Sonnet 4.6** | **97.4** | **97.5** | **98.7** | **97.5** |
+| **Qwen2.5-7B-Instruct** ⭐ (open, zero-shot) | **97.2** | **97.5** | **98.7** | **97.2** |
 | **GPT-5** | 95.0 | **75.7** | 95.7 | 93.2 |
 | Llama 3.3 70B (Groq) | 97.4 | 18.7 – 97.5 (bimodal)† | 95.7 | 89.3 |
 
@@ -202,7 +203,7 @@ daily-token-limit 429s**, not model failures. On the two seeds that actually ran
 Llama matches frontier. The correct statement is *Llama on T9 is high-variance*, not *Llama
 collapses uniformly*.
 
-**Three independent signals pop out.**
+**Four independent findings pop out.**
 
 **1. T9 separates execution-oriented from reasoning-oriented frontier.**
 Kimi / Claude execute T9 in ~8 s with 7 tool calls and score 97.5. GPT-5 "thinks" for ~223 s with
@@ -225,11 +226,22 @@ Multi-seed Kimi T9 = 97.5 with std 0.0. Multi-seed Llama T9 spans 18.7 – 97.5 
 can sometimes match frontier, just not *consistently*. Production agent deployment needs the
 consistent half.
 
-The honest takeaway: ComtradeBench produces three independent discriminative signals —
+**4. ⭐ A mid-size instruction-tuned 7B matches closed frontier — without training.**
+Qwen2.5-7B-Instruct, zero-shot (no fine-tuning, no GRPO), scores **97.2** — within 0.3 points of
+Kimi/Claude (97.5), above GPT-5 (93.2), and *well* above Llama 3.3 70B (89.3). This is **not** a
+blanket "open-source matches closed-source" claim: Llama 3.3 70B is *also* open-source and scores
+7.9 points lower. The relevant axis is **instruction-tuning quality at the 7B class**, not
+licensing. The honest reframing: *this benchmark is solvable by strongly-instructed mid-size
+models without any training*. A direct implication is that the GRPO 7B saturation we document
+below is *structural* — the base model genuinely clears the benchmark, so there is no gradient
+for GRPO to exploit. Qwen2.5-7B closing the gap without training validates that finding rather
+than undermining it.
+
+The honest takeaway: ComtradeBench produces four independent discriminative findings —
 execution-vs-reasoning at the frontier (Kimi/Claude vs GPT-5 on T9), saturation at the ceiling
-(Kimi = Claude), and reliability at the sub-frontier (Llama variance). Full per-task breakdowns
-are in `llm_results_kimi.json`, `llm_results_claude.json`, `llm_results_gpt5.json`,
-`llm_results_llama.json`, `multiseed_kimi_t9_summary.json`, `multiseed_llama_t9_summary.json`.
+(Kimi = Claude), reliability at the sub-frontier (Llama variance), and 7B-class instruction-tuned
+parity (Qwen2.5-7B ≈ frontier without training). Full per-task breakdowns are in
+`llm_results_{kimi,claude,gpt5,qwen7b_zeroshot,llama}.json` and multi-seed summaries.
 
 ### Ablation — context window dominates prompt engineering
 
@@ -356,6 +368,18 @@ This is the kind of bug that *only* surfaces when you actually run the full pipe
 KL and reward together. It is the primary reason we recommend anyone running GRPO in a new
 codebase always verify KL > 0 after the first gradient step — silent policy/actor desync is
 the default failure mode.
+
+**Recommendation for GRPO practitioners, general enough to use anywhere.**
+Silent policy/rollout-actor desync is the single worst failure mode we hit because *the training
+loop runs, the loss number looks reasonable, and the gradient step returns no error — yet no
+learning actually happens*. The only way to catch it is to instrument KL divergence between the
+updated policy and a fresh reference pass, and verify `KL > 0` after the first gradient step.
+Any GRPO practitioner setting up a new codebase should treat this as standard hygiene — adding
+a single assertion at the top of the training loop (e.g. `assert kl > 1e-6, "policy-actor
+desync"` after iter 1's gradient step) would have saved us the ~8 hours we spent diagnosing.
+This is independent of ComtradeBench — it applies to any GRPO implementation, whether you are
+using `train_grpo.py` from this repo, TRL's GRPOTrainer, or a custom loop. Add the check; you
+will eventually be glad you did.
 
 ---
 

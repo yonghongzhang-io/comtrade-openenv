@@ -41,7 +41,7 @@ tags:
 What happens when **Kimi, Claude, GPT-5, Llama, and open-source Qwen2.5-7B** all run the same 10 API tasks against the same seeded environment and the same deterministic 6-dimensional judge?
 
 - Kimi and Claude produce **numerically identical** scores on every single task — not close, *identical* (97.5 avg each).
-- **Open-source Qwen2.5-7B-Instruct, zero-shot (no training)**, scores **97.2 — within 0.3 of closed-source frontier**, above baseline, above GPT-5 and Llama 70B.
+- A **mid-size instruction-tuned open model (Qwen2.5-7B-Instruct)**, zero-shot (no training), scores **97.2 — within 0.3 points of closed-source frontier**. Note: Llama 3.3 70B (also open-source) scores only 89.3, so the relevant axis is **instruction quality + size at the 7B class**, not "open vs closed" as a crude dichotomy.
 - GPT-5 scores **21.8 points lower** than frontier on one specific task — the one with mid-episode fault escalation. Not because it's less capable, but because it *reasons for 223 seconds across 2 tool calls* instead of *executing 7 tool calls in 8 seconds*.
 - Llama is *bimodal* on that same task, spanning 18.7 to 97.5 across seeds — the discriminative signal is **reliability**, not capability.
 
@@ -57,7 +57,7 @@ ComtradeBench surfaces these failure modes because it measures **execution relia
 > **For judges — 30-second summary**:
 > - Ten-task OpenEnv benchmark for LLM agent reliability under adversarial API conditions (429/500, pagination drift, duplicates, totals traps, within-episode fault escalation, constrained budgets).
 > - **Five LLMs evaluated cross-model**: Kimi Moonshot V1-128k, Claude Sonnet 4.6, **open-source Qwen2.5-7B-Instruct (zero-shot)**, GPT-5, Llama 3.3 70B. Plus three Qwen2.5 sizes trained with GRPO (1.5B full-param, 3B + LoRA, 7B + LoRA).
-> - **Four independent findings**: (1) T9 separates execution-oriented from reasoning-oriented frontier (Kimi/Claude 97.5 vs GPT-5 75.7), (2) Kimi = Claude numerically identical → ceiling saturation, (3) Llama T9 bimodal → sub-frontier is about reliability not capability, (4) **⭐ Open-source Qwen2.5-7B zero-shot matches closed frontier (97.2 vs 97.5)** — benchmark solvable by well-instructed open 7B without any training.
+> - **Four independent findings**: (1) T9 separates execution-oriented from reasoning-oriented frontier (Kimi/Claude 97.5 vs GPT-5 75.7), (2) Kimi = Claude numerically identical → ceiling saturation, (3) Llama T9 bimodal → sub-frontier is about reliability not capability, (4) **⭐ A mid-size instruction-tuned open model (Qwen2.5-7B, zero-shot) matches closed-source frontier (97.2 vs 97.5)** — benchmark solvable by the 7B instruction-tuned class without any training. Note: this is not a blanket "open vs closed" claim — Llama 3.3 70B (also open) scores only 89.3.
 > - **GRPO operating envelope mapped at three points** (under-capacity / learn-then-collapse / saturation) — an actionable finding, not a "we trained something" claim.
 > - Results live and reproducible in the HF Docker Space.
 
@@ -88,14 +88,14 @@ The ten tasks cover pagination, deduplication, 429 / 500 retries, non-determinis
 
 †  Llama T9 is **bimodal**: the published seed-42 run hit 18.7, multi-seed re-run produced {97.5, 94.5, …} — the low number and the near-frontier numbers both reproduce. Raw per-seed data in `multiseed_llama_t9_summary.json`.
 
-**⭐ Open-source parity**: Qwen2.5-7B-Instruct, run *zero-shot* (no training, no fine-tuning), via Together AI → **97.2 / 100 avg, 97.5 on T9** — within 0.3 points of closed-source frontier (Kimi, Claude), above baseline, and **above GPT-5 by 4.0 points**. ComtradeBench is solvable by mid-size open-weights models at zero training cost. `llm_results_qwen7b_zeroshot.json`.
+**⭐ Mid-size instruction-tuned model parity**: Qwen2.5-7B-Instruct, run *zero-shot* (no training, no fine-tuning), via Together AI → **97.2 / 100 avg, 97.5 on T9** — within 0.3 points of closed-source frontier (Kimi, Claude), above baseline, and **above GPT-5 by 4.0 points**. Llama 3.3 70B (also open-source) scores only 89.3, so the finding is *not* "open-source matches closed-source" as a blanket claim — it's "**a strongly instruction-tuned 7B is enough for this benchmark**". The relevant axis is instruction quality + size class, not licensing. `llm_results_qwen7b_zeroshot.json`.
 
 ### Four independent findings from the cross-model evaluation
 
 1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi and Claude execute T9 in ~8 s across 7 tool calls and score 97.5. GPT-5 "thinks" for 223 s across 2 tool calls and scores 75.7 — a **21.8-point gap between frontier models** that a pass/fail benchmark would miss entirely. The breakdown tells the story: GPT-5's Efficiency drops to 6/15 (budget burned in reasoning-time) and Observability to ~4/10 (2 steps leave no audit trail).
 2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores on all 10 tasks. Same seeded environment, same deterministic judge, same solve-path → same score.
 3. **Sub-frontier is high-variance, not uniformly weak.** Kimi T9 std = 0.0 across 5 seeds. Llama T9 spans 18.7 – 97.5. The discriminative signal is *reliability*, not capability: Llama can sometimes match frontier, just not consistently.
-4. **⭐ Open-source 7B closes the gap to frontier without training.** Qwen2.5-7B-Instruct, zero-shot (no fine-tuning, no GRPO), scores 97.2 — within 0.3 points of Kimi/Claude, above GPT-5 and Llama 3.3 70B. This changes the headline: **the benchmark is not "can a closed frontier LLM solve this"; it's "can an agent execute reliably", and a well-instructed open 7B matches that bar**. It also validates the GRPO saturation finding — 7B genuinely is at ceiling for this benchmark, which is why GRPO fine-tuning provides no gradient signal.
+4. **⭐ Mid-size instruction-tuned 7B closes the gap to frontier without training.** Qwen2.5-7B-Instruct, zero-shot (no fine-tuning, no GRPO), scores 97.2 — within 0.3 points of Kimi/Claude, above GPT-5 and Llama 3.3 70B. This is *not* a blanket "open-source matches closed-source" claim: Llama 3.3 70B (open) scores only 89.3, and GPT-5 (closed) scores 93.2. The axis that matters is **instruction-tuning quality at the 7B size class**, not licensing. This finding reframes what the benchmark measures: **not "can a closed frontier LLM solve this" but "can an execution-oriented agent do the job reliably"**, and a strongly instruction-tuned 7B clears that bar. It also validates the GRPO saturation finding — 7B genuinely is at ceiling for this benchmark, which is why GRPO fine-tuning provides no gradient signal.
 
 ### GRPO training — operating envelope empirically mapped at three points
 
