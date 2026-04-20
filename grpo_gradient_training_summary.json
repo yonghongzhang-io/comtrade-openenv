@@ -1,0 +1,26 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "platform": "Lambda Labs A100-SXM4-40GB",
+  "framework": "GRPO with gradient updates (policy-sync bug fixed 2026-04-19)",
+  "config": {
+    "num_iterations": 50,
+    "batch_size": 2,
+    "group_size": 2,
+    "lr": 1e-05,
+    "max_steps": 20,
+    "max_seq_length": 1024,
+    "curriculum_warmup_iters": 10
+  },
+  "total_iters": 50,
+  "reward_first_10_mean": 0.5714,
+  "reward_last_10_mean": 0.5078,
+  "reward_improvement": -0.0636,
+  "reward_overall_mean": 0.5163,
+  "reward_overall_std": 0.2061,
+  "max_reward_first_10_mean": 0.8894,
+  "max_reward_last_10_mean": 0.8302,
+  "best_single_iter_mean": 0.9445,
+  "best_iter_index": 19,
+  "loss_final": 0.0079,
+  "kl_final": 0.1966
+}

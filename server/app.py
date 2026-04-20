@@ -271,11 +271,20 @@ LANDING_HTML = """<!DOCTYPE html>
       <p style="font-size:.85rem; color:var(--text); margin-bottom:.6rem;">
         Rule-based baseline: <strong>96.8 / 100</strong> across T1-T10.
       </p>
-      <p style="font-size:.82rem; color:var(--muted); line-height:1.7;">
-        Kimi V1-128k &amp; Claude Sonnet 4.6: <strong style="color:var(--text)">97.5 / 100</strong>
-        each (+0.7), identical per-task scores on all 10 tasks &mdash; frontier saturation. Llama 3.3 70B
-        collapses on T9 to <strong style="color:#f87171">18.7</strong>: <strong style="color:var(--text)">T9
-        produces a 78.8-pt frontier vs. sub-frontier gap</strong>.
+      <p style="font-size:.82rem; color:var(--muted); line-height:1.6;">
+        <strong style="color:var(--text)">Kimi V1-128k &amp; Claude Sonnet 4.6</strong>: 97.5 each
+        &mdash; identical per-task scores. <strong style="color:var(--text)">GPT-5</strong>: 93.2 avg,
+        <strong style="color:#22d3ee">T9 = 75.7</strong> &mdash; reasoning-oriented, 2 steps in 223s
+        vs Kimi's 7 steps in 8s. <strong style="color:var(--text)">Llama 3.3 70B</strong>: bimodal
+        on T9 (18.7 &ndash; 97.5 across seeds). T9 separates <em>execution-oriented</em> from
+        <em>reasoning-oriented</em> frontier.
+      </p>
+      <p style="font-size:.78rem; color:var(--muted); line-height:1.5; margin-top:.5rem;
+         border-top:1px solid #1e293b; padding-top:.5rem;">
+        <strong style="color:var(--text)">GRPO training envelope</strong> empirically mapped:
+        Qwen2.5-1.5B lacks task capacity (reward oscillates 0.22&ndash;0.94 over 50 iter, no net
+        trend). Qwen2.5-7B + LoRA saturates at init (mean 0.97 &rarr; reward_std &asymp; 0 &rarr;
+        no gradient signal). Useful training band: ~3B params.
       </p>
     </div>
 

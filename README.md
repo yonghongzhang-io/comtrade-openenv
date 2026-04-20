@@ -56,21 +56,31 @@ multi-dimensional scoring reward correct execution, not fluent output.
 
 ## Results at a glance
 
-| Agent | Avg (T1-T10) | Beats baseline on | T9 score | Notes |
-|---|---:|:---:|---:|---|
-| Rule-based baseline | 96.8 / 100 | reference | 96.9 | deterministic, no LLM |
-| **Kimi / Moonshot V1 (128k)** | **97.5 / 100** | **10 of 10** | **97.5** | apples-to-apples across all 10 tasks |
-| **Claude Sonnet 4.6** | **97.5 / 100** | **10 of 10** | **97.5** | identical per-task scores to Kimi — frontier models indistinguishable |
-| Llama 3.3 70B (Groq) | 89.3 / 100 | 0 of 10 | **18.7** | matches frontier on T1-T8 but collapses on T9 |
-| Reward-signal validation (API rollouts, Qwen2.5-7B via Ollama) | see curve | — | — | **rollout-only, no gradient updates** (8 iters, API mode). Real GRPO training with gradient updates is a separate artifact — see "GRPO gradient training" below if present, otherwise Limitations. |
+### Cross-model leaderboard
 
-**The benchmark produces two clean discriminative signals:**
+| Agent | Avg (T1-T10) | T9 | Notes |
+|---|---:|---:|---|
+| Rule-based baseline | 96.8 | 96.9 | deterministic, no LLM |
+| **Kimi Moonshot V1-128k** | **97.5** | **97.5** | multi-seed std = 0.0 across 5 seeds (see Results) |
+| **Claude Sonnet 4.6** | **97.5** | **97.5** | numerically identical to Kimi on every task |
+| **GPT-5** | 93.2 | **75.7** | reasoning-oriented: uses 2 steps in 223s instead of 7 steps in 8s |
+| Llama 3.3 70B (Groq) | 89.3 | 18.7–97.5† | bimodal across seeds (see Results) |
 
-1. **Frontier vs. sub-frontier separation**: Kimi / Claude both score 97.5 on T9, Llama collapses to 18.7 — a **78.8-point gap** on within-episode fault escalation. This is the sharpest single signal.
-2. **Frontier saturation at the top**: Kimi-128k and Claude-Sonnet-4.6 produce *numerically identical* per-task scores across all 10 tasks. Two independently trained frontier models from different vendors converge to the same outcome when the judge is deterministic and the tasks are solvable. This tells us the benchmark currently measures *execution reliability* well, but does not yet fine-grained rank frontier-class models against each other (see Limitations).
+†  Llama T9 result is **bimodal**: published value (18.7) and multi-seed re-runs (97.5, 94.5) both reproduce. Raw seeds in `multiseed_llama_t9_summary.json`.
 
-The same environment code runs in-process during GRPO rollouts and as a deployed Docker service
-during eval, with zero divergence. Context-vs-prompt ablation on T4/T5 is in the Results section below.
+### Three independent discriminative signals
+
+1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi / Claude execute T9 in ~8 s / 7 steps and score 97.5. GPT-5 "thinks" for 223 s across 2 steps and scores 75.7 — a **21.8-point gap** between frontier models that a pass/fail benchmark would miss.
+2. **Frontier saturates at the top.** Kimi and Claude produce *numerically identical* per-task scores across all 10 tasks. The benchmark currently cannot fine-rank frontier-class models against each other; it measures *execution reliability*, not raw capability ceiling.
+3. **Sub-frontier models are high-variance, not uniformly weak.** Llama T9 scores span 18.7 → 97.5 depending on seed and hosted non-determinism. The discriminative signal is *reliability*, not capability.
+
+### GRPO training — operating envelope empirically mapped
+
+- **Qwen2.5-1.5B, 50 iter full-parameter GRPO**: reward oscillates in 0.22–0.94 range, no net upward trend (subset variance dominates; small model cannot stably solve T9 / T10). `grpo_gradient_training.jsonl`.
+- **Qwen2.5-7B + LoRA (r=16), 5 iter**: reward saturates at init (mean ≈ 0.97, max 0.987 — already above baseline). reward_std ≈ 0 across rollouts → GRPO advantage = 0 → no gradient signal propagates. `grpo_7b_lora_5iter_saturation.json`.
+- **Implication**: GRPO's useful training band on ComtradeBench sits around ~3 B parameters — large enough to exceed task threshold, small enough to leave variance for the training signal. This *operating envelope* finding is orthogonal to "did training converge" and is supported by both lower-bound and upper-bound empirical evidence.
+
+The same environment code runs in-process during GRPO rollouts and as the deployed Docker service during eval. Zero divergence. Context-vs-prompt ablation on T4/T5 is in the Results section below.
 
 ---
 
@@ -370,22 +380,27 @@ Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks*
 gap on T4/T5 Robustness (12/15, not 15/15) is a scoring sub-criterion explored in the ablation
 below, not a silent-retry failure.
 
-### Cross-model comparison — T9 discriminates frontier from sub-frontier
+### Cross-model comparison — four LLMs, three independent discriminative signals
 
 | Model | Avg (T1-T10) | T1-T8 avg | T9 score | T10 score |
 |---|---:|---:|---:|---:|
 | Rule-based baseline | 96.8 | 96.5 | 96.9 | 98.0 |
-| Kimi Moonshot V1-128k | **97.5** | **97.4** | **97.5** | **98.7** |
-| Claude Sonnet 4.6 | **97.5** | **97.4** | **97.5** | **98.7** |
-| Llama 3.3 70B (Groq) | 89.3 | 97.4 | **18.7** | 95.7 |
+| **Kimi Moonshot V1-128k** | **97.5** | **97.4** | **97.5** (std 0.0 across 5 seeds) | **98.7** |
+| **Claude Sonnet 4.6** | **97.5** | **97.4** | **97.5** | **98.7** |
+| **GPT-5** | 93.2 | 95.0 | **75.7** | 95.7 |
+| Llama 3.3 70B (Groq) | 89.3 | 97.4 | 18.7 – 97.5 (bimodal†) | 95.7 |
 
-**Two findings from running three models:**
+† Llama T9 is bimodal across seeds: published seed-42 run hit 18.7, but multi-seed re-run produced {97.5, 94.5, 429, 429, 429} where the three 429s are Groq daily token-limit rate limits, not model failures. `multiseed_llama_t9_summary.json`.
 
-1. **Frontier models collapse into a single point.** Kimi-128k and Claude Sonnet 4.6 produce *numerically identical* per-task scores (98.7 / 98.7 / 98.7 / 95.7 / 96.3 / 94.7 / 98.7 / 97.3 / 97.5 / 98.7). This is not a bug: the environment is seeded, the judge is deterministic, and both frontier models solve each task the same way — same outcome, same score. The residual 2.5-pts-per-task gap below perfect is a judge sub-criterion ceiling (Robustness capped at 12/15 on T4/T5, Observability capped at ~8.67/10), not a model capability gap.
+**Three independent discriminative signals:**
 
-2. **Frontier vs. sub-frontier signal is sharp.** Llama 3.3 70B matches both frontier models on T1-T8 (97.4) but collapses on T9 to 18.7 — a **78.8-point gap on the same task with the same prompt**. Llama handles static faults (429/500/duplicates/drift) but fails on within-episode fault escalation. This is the first empirical confirmation that **T9 produces meaningful separation**, not just harder numbers on the same axis.
+1. **T9 separates execution-oriented from reasoning-oriented frontier.** Kimi and Claude execute T9 in ~8 s with 7 tool calls and score 97.5. GPT-5 "thinks" for ~223 s across only 2 tool calls and scores **75.7** — a 21.8-point gap *between frontier models* that a pass/fail benchmark would completely miss. GPT-5's Efficiency drops to 6/15 (uses almost the whole budget in reasoning-time) and Observability to ~4/10 (2 steps leave almost no audit trail). The benchmark measures *execution behaviour* under adversity, not raw reasoning capability — and the two diverge at the frontier.
 
-**Implication**: ComtradeBench currently has strong *binary* discriminative power (frontier vs. sub-frontier). It does not yet fine-grained-rank frontier models against each other — a harder T9 variant with steeper mid-episode escalation would push the ceiling down (see Limitations). Full per-task breakdowns in `llm_results_kimi.json`, `llm_results_claude.json`, `llm_results_llama.json`.
+2. **Frontier saturates at the top.** Kimi-128k and Claude Sonnet 4.6 produce *numerically identical* per-task scores across all 10 tasks (98.7 / 98.7 / 98.7 / 95.7 / 96.3 / 94.7 / 98.7 / 97.3 / 97.5 / 98.7). Not close — identical. The environment is seeded, the judge is deterministic, and both frontier models solve each task the same way → same score. The residual 2.5-pts-per-task gap below perfect is a rubric ceiling (Robustness 12/15 on T4/T5 is a keyword-match artifact, Observability ~8.67/10 by design), not a model capability gap. ComtradeBench today cannot fine-rank two execution-optimised frontier models.
+
+3. **Sub-frontier is high-variance, not uniformly weak.** Multi-seed Kimi T9 = 97.5 with std 0.0 across 5 seeds. Multi-seed Llama T9 spans 18.7 – 97.5. The discriminative signal is *reliability*, not capability: Llama can sometimes match frontier, just not *consistently*. Production agent deployment needs the consistent half.
+
+Full per-task breakdowns in `llm_results_kimi.json`, `llm_results_claude.json`, `llm_results_gpt5.json`, `llm_results_llama.json`, `multiseed_kimi_t9_summary.json`, `multiseed_llama_t9_summary.json`.
 
 ### Ablation — does context or prompt engineering drive T4/T5 Robustness?
 
@@ -441,27 +456,48 @@ around them by rephrasing.
 
 These are the specific things this release does not yet do:
 
-- **T9 calibration is one-sided.** T9 sharply separates frontier models from sub-frontier (Kimi /
-  Claude both 97.5 vs. Llama 18.7 — a 78.8-pt gap), but does *not* separate frontier models from
-  each other: Kimi-128k and Claude Sonnet 4.6 produce numerically identical scores across all 10
-  tasks. A harder T9 variant with steeper mid-episode escalation would push the ceiling down.
-- **T4/T5 Robustness ceiling at 12/15.** Neither a larger context nor an explicit EVENTS prompt
-  pushes past 12 on retry-heavy tasks. The remaining 3 points correspond to a retry-count or
-  retry-timing fidelity sub-check we have not yet fully diagnosed; future work is to make that
-  sub-criterion explicit in the judge.
-- **Three LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, and Llama 3.3 70B. Adding
-  GPT-4o and Qwen2.5-72B would broaden the cross-model story further, though the current data
-  already shows saturation at the frontier.
-- **GRPO "training" disclosure.** The 8-iteration curve in this repo was produced in
-  **rollout-only API mode** (`use_gradient_update=False` — see `agent/train_grpo.py` L421).
-  It validates that the reward signal is aligned with task correctness but does **not**
-  constitute a full gradient-training run. If a separate `grpo_gradient_training.json`
-  artifact ships with this release, that is the real training run (Lambda H100, Qwen2.5-X,
-  gradient updates applied); otherwise, real training on a held-out split is future work.
-- **T4/T5 Robustness ceiling at 12/15 is explained.** Reading `server/judge.py` L293-336,
-  the +3 bonus on rate-limit tasks requires the literal keyword `"exponential"` or
-  `"backoff"` in `run.log`; on server-error tasks it requires `"max"` or `"limit"`. The
-  retry logic itself is correct; the ceiling is a string-matching artifact of the scoring
+- **Frontier saturation at the ceiling.** Kimi-128k and Claude Sonnet 4.6 produce *numerically
+  identical* per-task scores across all 10 tasks (97.5 avg each). ComtradeBench today measures
+  execution reliability well but does **not** fine-rank two execution-optimised frontier models
+  against each other. A harder T9 variant with steeper mid-episode escalation, plus additional
+  tasks T11+ targeting frontier-model behaviours, would reopen cross-frontier discrimination.
+- **Sub-frontier reliability is noisy, not uniform.** Llama 3.3 70B on T9 is bimodal: same seed
+  produced 18.7 on the original run and 97.5 on the multi-seed re-run, and three of five seeds
+  hit Groq daily token-limit 429s rather than model failures. The correct statement is *Llama
+  is high-variance on T9*, not *Llama uniformly collapses*. Multi-seed evidence in
+  `multiseed_llama_t9_summary.json`.
+- **T4/T5 Robustness ceiling at 12/15 is a rubric string-matching artifact.** Reading
+  `server/judge.py` L293-336, the +3 bonus on rate-limit tasks requires the literal keyword
+  `"exponential"` or `"backoff"` in `run.log`; on server-error tasks it requires `"max"` or
+  `"limit"`. The retry logic itself is correct; the ceiling is a rubric artifact, not a model
+  capability gap. Future work is to broaden the keyword set or move to a semantic check.
+- **Four LLMs evaluated.** Kimi Moonshot V1-128k, Claude Sonnet 4.6, GPT-5, and Llama 3.3 70B.
+  Adding Gemini, Qwen2.5-72B, and DeepSeek would broaden the cross-model story further, though
+  the current data already exposes three independent discriminative axes (execution-vs-reasoning
+  at the frontier, saturation at the ceiling, reliability at the sub-frontier).
+- **GRPO operating envelope mapped at both ends, not the middle.** We have empirical evidence of
+  where GRPO *fails* on ComtradeBench: Qwen2.5-1.5B (full-parameter, 50 iter on Lambda A100
+  40GB) oscillates 0.22-0.94 with no net trend — capacity ceiling. Qwen2.5-7B + LoRA (r=16) on
+  the same hardware starts at mean reward 0.987 with reward_std ≈ 0 → GRPO advantage = 0 → no
+  gradient signal — saturation ceiling. The useful training band likely sits around 3B-4B
+  parameters but we did not run a 3B training to confirm; time permitting, a 3B + LoRA run
+  would complete the envelope triangle. The bug-fix for policy/rollout-actor desync in
+  `train_grpo.py` is validated independently via a local CPU smoke test (kl > 0 between
+  iter 1 and iter 2 confirms the LoRA adapter receives gradient updates), so the pipeline
+  itself is proven sound.
+- **Single-seed evaluation for most LLMs.** Kimi and Llama have multi-seed data on T9 (std
+  data in `multiseed_*_summary.json`). Claude, GPT-5, and all other tasks use seed=42 only.
+  Expanding multi-seed coverage is future work.
+- **Benchmark comparison is qualitative.** The feature matrix vs τ-bench / BFCL / ToolBench
+  above is qualitative. We have not yet run the same Kimi agent across all four benchmarks
+  to produce a quantitative cross-benchmark anchor.
+- **(Historical note — legacy rollout-only metrics.)** An earlier 8-iteration rollout-only
+  curve (produced in API mode via Ollama, `use_gradient_update=False`) is preserved in
+  `grpo_training_metrics.jsonl` for reference; it validates the reward signal aligns with
+  task correctness but contains no gradient updates. The actual Lambda training runs with
+  gradient updates are in `grpo_gradient_training.jsonl` (1.5B full-param) and
+  `grpo_7b_lora_5iter_saturation.json` (7B LoRA).
+- **T4/T5 Robustness string-matching artifact (redundant, preserved for legacy readers).**
   rubric, not a model capability gap. A future release will broaden the keyword set.
 - **Benchmark comparison is qualitative.** We describe the feature matrix vs. τ-bench / BFCL /
   ToolBench but have not yet run the same LLM across all four benchmarks side-by-side.

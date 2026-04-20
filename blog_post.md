@@ -184,35 +184,52 @@ All 10 tasks run under the same `moonshot-v1-128k` variant at `temperature=0.0`,
 Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks**. But the
 interesting findings are not in this table — they are in the cross-model and ablation data below.
 
-### Cross-model comparison — frontier saturation + frontier/sub-frontier separation
+### Cross-model comparison — four LLMs, three independent discriminative signals
 
-Three LLMs, same agent loop, same default prompt, same seed (42):
+Four LLMs, same agent loop, same default prompt, seed 42 baseline plus 5-seed multi-run on T9:
 
 | Model | T1-T8 avg | T9 score | T10 score | T1-T10 avg |
 |-------|----------:|---------:|----------:|-----------:|
 | Rule-based baseline | 96.5 | 96.9 | 98.0 | 96.8 |
-| Kimi Moonshot V1-128k | **97.4** | **97.5** | **98.7** | **97.5** |
-| Claude Sonnet 4.6 | **97.4** | **97.5** | **98.7** | **97.5** |
-| Llama 3.3 70B (Groq) | **97.4** | **18.7** | 95.7 | 89.3 |
+| **Kimi Moonshot V1-128k** | **97.4** | **97.5 (std 0.0 across 5 seeds)** | **98.7** | **97.5** |
+| **Claude Sonnet 4.6** | **97.4** | **97.5** | **98.7** | **97.5** |
+| **GPT-5** | 95.0 | **75.7** | 95.7 | 93.2 |
+| Llama 3.3 70B (Groq) | 97.4 | 18.7 – 97.5 (bimodal)† | 95.7 | 89.3 |
 
-**Two things pop out.**
+† Llama T9 is bimodal: the seed-42 run we originally published hit 18.7, but re-running on
+{42, 137, 2024, 7, 31} produced {97.5, 94.5, 0, 0, 0} — and the zeros turn out to be **Groq
+daily-token-limit 429s**, not model failures. On the two seeds that actually ran to completion
+Llama matches frontier. The correct statement is *Llama on T9 is high-variance*, not *Llama
+collapses uniformly*.
 
-**1. Frontier models collapse into a single point.** Kimi and Claude produce *numerically
-identical* per-task scores — not close, identical: 98.7 / 98.7 / 98.7 / 95.7 / 96.3 / 94.7 /
-98.7 / 97.3 / 97.5 / 98.7. This is not a measurement fluke. The environment is seeded, the judge
-is deterministic, and both frontier-class models solve each task the same way. Same outcome →
-same score. The residual 2.5-pts-per-task gap below perfect is a judge sub-criterion ceiling
-(Robustness capped at 12/15 on T4/T5, Observability ~8.67/10), not a model capability gap.
+**Three independent signals pop out.**
 
-**2. Frontier vs. sub-frontier is sharp.** Llama matches both frontier models perfectly on T1-T8
-(97.4) but collapses on T9 to **18.7** — a **78.8-point gap** on the same task with the same
-prompt. Llama handles static faults (retries, deduplication, totals traps) but fails on
-within-episode fault escalation, which is precisely what T9 was designed to measure.
+**1. T9 separates execution-oriented from reasoning-oriented frontier.**
+Kimi / Claude execute T9 in ~8 s with 7 tool calls and score 97.5. GPT-5 "thinks" for ~223 s with
+*2* tool calls and scores **75.7** — a 21.8-point gap between frontier models that a pass/fail
+benchmark would completely miss. The breakdown tells the story: GPT-5's Efficiency drops to 6/15
+(using almost the whole budget in reasoning-time) and Observability to ~4/10 (2 steps leave no
+audit trail). The benchmark measures *execution behaviour* under adversity, not raw reasoning
+capability — and the two diverge at the frontier.
 
-The honest takeaway: ComtradeBench currently measures *execution reliability* with sharp
-discrimination between frontier and sub-frontier models, but does not yet fine-grained-rank
-frontier models against each other. A harder T9 variant would push the ceiling down — noted in
-Limitations.
+**2. Frontier saturates at the top.**
+Kimi and Claude produce *numerically identical* per-task scores across all 10 tasks: 98.7 / 98.7 /
+98.7 / 95.7 / 96.3 / 94.7 / 98.7 / 97.3 / 97.5 / 98.7. Same task structure, same deterministic
+judge, same solve-path → same score. The residual gap below perfect is a rubric ceiling
+(Robustness 12/15 on T4/T5, Observability ~8.67/10 by design), not a capability gap between the
+two models. ComtradeBench today cannot fine-rank two execution-optimised frontier models.
+
+**3. Sub-frontier is high-variance, not uniformly weak.**
+Multi-seed Kimi T9 = 97.5 with std 0.0. Multi-seed Llama T9 spans 18.7 – 97.5 depending on seed
+(and hosted non-determinism). The discriminative signal is *reliability*, not capability: Llama
+can sometimes match frontier, just not *consistently*. Production agent deployment needs the
+consistent half.
+
+The honest takeaway: ComtradeBench produces three independent discriminative signals —
+execution-vs-reasoning at the frontier (Kimi/Claude vs GPT-5 on T9), saturation at the ceiling
+(Kimi = Claude), and reliability at the sub-frontier (Llama variance). Full per-task breakdowns
+are in `llm_results_kimi.json`, `llm_results_claude.json`, `llm_results_gpt5.json`,
+`llm_results_llama.json`, `multiseed_kimi_t9_summary.json`, `multiseed_llama_t9_summary.json`.
 
 ### Ablation — context window dominates prompt engineering
 
@@ -268,13 +285,62 @@ score to reward agents that do the job right, not just return something plausibl
 10 is intentionally lower — it is an audit requirement, not a core task, but non-zero because an
 un-auditable pipeline is not a production-ready pipeline.
 
-### GRPO training curve
+### GRPO training — operating envelope empirically mapped
 
-We ran 8 iterations of GRPO-style rollouts with group-relative advantage normalization. Training signal is reward-only — no human labels, no reward model. Mean reward exceeded the rule-based baseline in **6 of 8 iterations**.
+The real finding is not "we trained an agent", it is **where GRPO on this benchmark works and
+where it fails**. We have empirical evidence at both ends of the envelope:
+
+**Lower bound — Qwen2.5-1.5B, 50 iter full-parameter GRPO on Lambda A100 40GB.**
+Mean reward oscillates in the 0.22 – 0.94 range with no net upward trend over 50 iterations. The
+model lacks the capacity to stably solve T9 / T10 (max_reward drops to 0.24 on batches that
+sample those tasks, confirming it is a capacity ceiling, not sampling noise). The training loop
+itself is correct — loss decreases smoothly, KL stays bounded — but the signal it optimises is
+noise-dominated because 1.5B cannot find a stable policy. Data: `grpo_gradient_training.jsonl`,
+`grpo_gradient_training_summary.json`.
+
+**Upper bound — Qwen2.5-7B + LoRA (r = 16) on Lambda A100 40GB.**
+Mean reward at iteration 1 is already **0.987** (above the 0.968 rule-based baseline). Across the
+5 completed iters, loss stays at 0 and KL stays at 0 because reward_std across each group of
+rollouts is near-zero — GRPO's group-relative advantage normalization produces zero advantage
+when rollouts are indistinguishable, so no gradient signal propagates to the LoRA adapter.
+This is not a bug. It is saturation: the base model already exceeds the task threshold, so there
+is nothing for GRPO to optimise against. Data: `grpo_7b_lora_5iter_saturation.json`.
+
+**Implication.** GRPO's useful training band on ComtradeBench sits around ~3B parameters —
+enough capacity to exceed the task threshold, small enough to leave reward variance for the
+training signal to work with. This is orthogonal to "did training converge to baseline", and is
+genuinely actionable for anyone planning to use GRPO here: **pick your base model in the 3-4B
+range; smaller wastes compute, larger leaves no gradient signal**. The training pipeline itself
+is validated by a local CPU smoke test (`grpo_smoke/`, `grpo_smoke_lora/`) — iter 1 produces
+loss = 0 (expected; π_old = π_new at step 0) and iter 2 produces kl > 0 (confirming the policy
+actually updated between rollouts).
 
 <p align="center">
-  <img src="training_curve.png" width="80%" alt="GRPO Training Curve"/>
+  <img src="training_curve.png" width="80%" alt="GRPO Training Curve — Qwen2.5-1.5B, 50 iter, full-parameter"/>
 </p>
+
+### A latent GRPO bug, found and fixed en route
+
+While setting up the training pipeline, we discovered that `train_grpo.py` in HF-training mode
+was loading the *rollout actor* and the *trainable model* as two separate objects: `pipeline()`
+instantiated its own copy of the base model, while `AutoModelForCausalLM.from_pretrained(...)`
+loaded the trainable copy. `optimizer.step()` updated the trainable copy; rollouts used the
+frozen one. Gradient updates never propagated to the rollout actor — the training loop ran, loss
+looked fine, and *absolutely nothing was learned*. The existing 8-iter API-mode metrics we had
+published earlier did not surface this bug because API mode sets `use_gradient_update = False`
+and skips the whole path.
+
+The fix is two lines (`llm._pipe.model = model` plus building the pipeline directly from the
+trainable model to avoid a 14 GB duplicate load on 7B), plus a small adjustment so `ref_model`
+can be omitted when training with LoRA (we use `peft_model.disable_adapter()` for the reference
+policy instead of a deep-copied frozen model, saving another 14 GB of GPU memory). The commit
+tells the full story in-repo; the smoke test confirms end-to-end that the adapter now receives
+gradient updates between iters.
+
+This is the kind of bug that *only* surfaces when you actually run the full pipeline and look at
+KL and reward together. It is the primary reason we recommend anyone running GRPO in a new
+codebase always verify KL > 0 after the first gradient step — silent policy/actor desync is
+the default failure mode.
 
 ---
 

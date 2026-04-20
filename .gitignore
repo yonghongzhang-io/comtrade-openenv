@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 grpo_output/
 grpo_smoke/
+grpo_smoke_lora/
 grpo_gradient_training/
 *.log
 .DS_Store

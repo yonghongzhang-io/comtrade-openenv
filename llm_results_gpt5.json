@@ -1,0 +1,185 @@
+{
+  "model": "gpt-5",
+  "api_url": "https://api.openai.com/v1",
+  "provider": "OpenAI",
+  "note": "All 10 tasks run at default temperature (GPT-5 family does not accept temperature<1), seed=42, max_completion_tokens=4000. No 'stop' or 'temperature' params (GPT-5 rejects them). Per run_eval.py --all on 2026-04-19.",
+  "seed": 42,
+  "tasks_run": [
+    "T1_single_page",
+    "T2_multi_page",
+    "T3_duplicates",
+    "T4_rate_limit_429",
+    "T5_server_error_500",
+    "T6_page_drift",
+    "T7_totals_trap",
+    "T8_mixed_faults",
+    "T9_adaptive_adversary",
+    "T10_constrained_budget"
+  ],
+  "average_score": 93.2,
+  "average_reward": 0.932,
+  "results": [
+    {
+      "task_id": "T1_single_page",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 3,
+      "elapsed_s": 10.5
+    },
+    {
+      "task_id": "T2_multi_page",
+      "reward": 0.939,
+      "score": 93.9,
+      "breakdown": {
+        "correctness": 28.23454157782516,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 203.6
+    },
+    {
+      "task_id": "T3_duplicates",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 17.1
+    },
+    {
+      "task_id": "T4_rate_limit_429",
+      "reward": 0.957,
+      "score": 95.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 21.6
+    },
+    {
+      "task_id": "T5_server_error_500",
+      "reward": 0.933,
+      "score": 93.3,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 12.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 9.34
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 50.2
+    },
+    {
+      "task_id": "T6_page_drift",
+      "reward": 0.907,
+      "score": 90.7,
+      "breakdown": {
+        "correctness": 25.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 3,
+      "elapsed_s": 168.0
+    },
+    {
+      "task_id": "T7_totals_trap",
+      "reward": 0.987,
+      "score": 98.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 15.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 5,
+      "elapsed_s": 33.5
+    },
+    {
+      "task_id": "T8_mixed_faults",
+      "reward": 0.909,
+      "score": 90.9,
+      "breakdown": {
+        "correctness": 25.2,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 3,
+      "elapsed_s": 202.9
+    },
+    {
+      "task_id": "T9_adaptive_adversary",
+      "reward": 0.757,
+      "score": 75.7,
+      "breakdown": {
+        "correctness": 20.4,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 6.0,
+        "data_quality": 15.0,
+        "observability": 4.335
+      },
+      "error": null,
+      "steps": 2,
+      "elapsed_s": 223.0
+    },
+    {
+      "task_id": "T10_constrained_budget",
+      "reward": 0.957,
+      "score": 95.7,
+      "breakdown": {
+        "correctness": 30.0,
+        "completeness": 15.0,
+        "robustness": 15.0,
+        "efficiency": 12.0,
+        "data_quality": 15.0,
+        "observability": 8.67
+      },
+      "error": null,
+      "steps": 10,
+      "elapsed_s": 120.7
+    }
+  ],
+  "vs_kimi_claude_t9": "GPT-5 scored 75.7 on T9 vs Kimi/Claude 97.5 — execution-vs-reasoning finding: GPT-5 used only 2 steps in 223s (overthinking), Kimi/Claude use 7 steps in ~8s (executing). Frontier reasoning models don't automatically win on execution-reliability benchmarks.",
+  "generated_at": "2026-04-19T23:00"
+}
