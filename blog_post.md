@@ -184,9 +184,9 @@ All 10 tasks run under the same `moonshot-v1-128k` variant at `temperature=0.0`,
 Kimi-128k matches or slightly exceeds the rule-based baseline on **all 10 tasks**. But the
 interesting findings are not in this table — they are in the cross-model and ablation data below.
 
-### Cross-model comparison — four LLMs, three independent discriminative signals
+### Cross-model comparison — five LLMs, four independent findings
 
-Four LLMs, same agent loop, same default prompt, seed 42 baseline plus 5-seed multi-run on T9:
+Five LLMs (four closed/open frontier-class models plus one open-source mid-size baseline), same agent loop, same default prompt, seed 42 baseline plus 5-seed multi-run on T9:
 
 | Model | T1-T8 avg | T9 score | T10 score | T1-T10 avg |
 |-------|----------:|---------:|----------:|-----------:|
