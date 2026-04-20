@@ -386,7 +386,7 @@ def train(args: argparse.Namespace) -> None:
         logger.info(f"Loading HuggingFace model: {args.hf_model}")
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline as hf_pipeline
         tokenizer = AutoTokenizer.from_pretrained(args.hf_model, trust_remote_code=True)
         # device_map pinned to the same device as our training tensors.
         # "auto" on Mac picks MPS and then fails because training code lives on CPU.
@@ -396,19 +396,20 @@ def train(args: argparse.Namespace) -> None:
             device_map=device,
             trust_remote_code=True,
         )
-        # Load LLMBackend AFTER the model, and inject the trained model into its pipeline
-        # so rollouts use the actual policy being updated (see sync fix below).
-        llm = LLMBackend.from_hf(args.hf_model, device=device)
-
-        # CRITICAL FIX (2026-04-19): unify the rollout policy with the trainable model.
-        # Without this, pipeline() loads its own separate model copy — gradient updates
-        # on `model` never propagate to `llm._pipe.model`, so rollouts always use stale
-        # weights and GRPO produces flat reward curves despite valid gradient steps.
-        llm._pipe.model = model
-        # Also sync pipeline device: pipeline routes input tensors to self.device before
-        # calling model.generate(). If its device is stale (e.g. MPS from auto-detect) but
-        # model is on CPU, we get "Placeholder storage has not been allocated on MPS".
+        # Build the rollout pipeline DIRECTLY from our trainable model+tokenizer
+        # so we never load a second 14 GB copy of 7B. Critical for 7B on 40GB
+        # GPUs — the previous path (LLMBackend.from_hf(name)) re-downloaded and
+        # re-instantiated the model which OOMed on A100 40GB.
+        llm = LLMBackend()
+        llm._model_name = args.hf_model
+        llm._pipe = hf_pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+        )
         llm._pipe.device = torch.device(device)
+        logger.info(f"Pipeline built on trainable model (no duplicate load)")
         model.gradient_checkpointing_enable()
         model.eval()
 
