@@ -83,16 +83,24 @@ print('Qwen2ForCausalLM + peft imports ok')
 "
 
 # --- 2. Training config -----------------------------------------------------
-MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+# Default model is now 3B (the GRPO sweet spot found in our envelope study):
+# 1.5B is under-capacity, 7B saturates, 3B sits in the learnable band but
+# needs the stabilisers below to avoid the iter-15 policy collapse.
+MODEL="${TRAIN_MODEL:-Qwen/Qwen2.5-3B-Instruct}"
 USE_LORA="${TRAIN_USE_LORA:-1}"
 LORA_R="${TRAIN_LORA_R:-16}"
-ITERS="${TRAIN_ITERS:-50}"
+ITERS="${TRAIN_ITERS:-60}"
 BATCH="${TRAIN_BATCH:-2}"
-GROUP="${TRAIN_GROUP:-2}"
-LR="${TRAIN_LR:-1e-5}"
+GROUP="${TRAIN_GROUP:-4}"   # larger group → lower-variance advantage estimate
+LR="${TRAIN_LR:-5e-6}"      # halved from 1e-5: smaller steps, more stable
 MAX_STEPS="${TRAIN_MAX_STEPS:-20}"
 SEQLEN="${TRAIN_SEQLEN:-1024}"
 OUT_DIR="${TRAIN_OUT_DIR:-grpo_gradient_training}"
+
+# Stabilisation (targets the original 3B iter-15 collapse)
+CLIP_EPS="${TRAIN_CLIP_EPS:-0.1}"       # tighter trust region (was 0.2)
+KL_COEFF="${TRAIN_KL_COEFF:-0.04}"      # initial KL penalty
+KL_TARGET="${TRAIN_KL_TARGET:-0.05}"    # adaptive-KL target band centre
 
 echo ""
 echo "=== GRPO gradient training on Lambda ==="
@@ -114,10 +122,15 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
     --batch-size "${BATCH}" \
     --group-size "${GROUP}" \
     --lr "${LR}" \
+    --clip-eps "${CLIP_EPS}" \
+    --kl-coeff "${KL_COEFF}" \
+    --adaptive-kl --kl-target "${KL_TARGET}" \
+    --early-stop-invalid-iters 3 \
+    --early-stop-std-iters 6 --early-stop-std-floor 0.02 \
     --max-steps "${MAX_STEPS}" \
     --max-seq-length "${SEQLEN}" \
     --output-dir "${OUT_DIR}" \
-    --save-every 25 \
+    --save-every 20 \
     --curriculum-warmup-iters 5 \
     --temperature 0.7 \
     ${LORA_FLAGS} \

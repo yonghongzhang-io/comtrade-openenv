@@ -492,6 +492,20 @@ def train(args: argparse.Namespace) -> None:
     global_step = 0
     all_task_ids = ALL_TASK_IDS.copy()
 
+    # ------------------------------------------------------------------
+    # Stabilisation state (for adaptive KL + early-stop)
+    # ------------------------------------------------------------------
+    # Adaptive KL: scale kl_coeff up when measured KL exceeds a target band,
+    # scale down when below — keeps the policy in a trust region without a
+    # hand-tuned fixed kl_coeff. This is the standard PPO/GRPO adaptive-KL
+    # controller (Schulman et al. 2017, §"Adaptive KL Penalty Coefficient").
+    adaptive_kl_coeff = args.kl_coeff
+    # Early-stop: track recent reward_std to detect variance collapse, the
+    # signature of policy collapse we observed in the original 3B run (iters
+    # 15-17 produced zero valid rollouts after reward_std dropped to ~0).
+    recent_reward_std: list[float] = []
+    recent_invalid_frac: list[float] = []
+
     for iteration in range(args.num_iterations):
         t_start = time.time()
 
@@ -520,8 +534,31 @@ def train(args: argparse.Namespace) -> None:
         # Filter out failed rollouts
         valid = [r for r in rollouts if not r.get("error") and r["completion"]]
 
+        # --- Early-stop guard 1: consecutive zero-valid-rollout iterations ---
+        # This is the exact failure signature of the original 3B collapse:
+        # once the policy drifts into a degenerate region it emits unparseable
+        # tool calls, so n_valid drops to 0. If we see this for
+        # `args.early_stop_invalid_iters` consecutive iterations, stop and
+        # keep the last good checkpoint rather than burning compute on a
+        # collapsed policy.
+        invalid_frac = 1.0 - (len(valid) / max(len(rollouts), 1))
+        recent_invalid_frac.append(invalid_frac)
+        if len(recent_invalid_frac) > args.early_stop_invalid_iters:
+            recent_invalid_frac.pop(0)
+
         if not valid:
             logger.warning("No valid rollouts this iteration. Skipping gradient step.")
+            if (
+                args.early_stop_invalid_iters > 0
+                and len(recent_invalid_frac) >= args.early_stop_invalid_iters
+                and all(f >= 0.999 for f in recent_invalid_frac)
+            ):
+                logger.error(
+                    f"EARLY STOP: {args.early_stop_invalid_iters} consecutive "
+                    f"iterations with zero valid rollouts — policy has collapsed. "
+                    f"Halting training; last good checkpoint is preserved."
+                )
+                break
             continue
 
         # ---- Compute GRPO advantages ----
@@ -569,12 +606,25 @@ def train(args: argparse.Namespace) -> None:
                 max_length=args.max_seq_length,
                 device=device,
                 clip_eps=args.clip_eps,
-                kl_coeff=args.kl_coeff,
+                kl_coeff=adaptive_kl_coeff,
                 max_grad_norm=args.max_grad_norm,
             )
             iter_metrics["loss"] = loss_val
             iter_metrics["kl"] = kl_val
+            iter_metrics["kl_coeff"] = adaptive_kl_coeff
             global_step += 1
+
+            # --- Adaptive KL controller (Schulman et al. 2017) ---
+            # Keep measured KL inside [target/1.5, target*1.5]. If KL is too
+            # high (policy moving too fast → collapse risk), increase the
+            # penalty coefficient; if too low (policy barely moving →
+            # under-training), decrease it. Multiplicative update with a
+            # factor of 1.5, clamped to a sane range.
+            if args.adaptive_kl and args.kl_target > 0:
+                if kl_val > args.kl_target * 1.5:
+                    adaptive_kl_coeff = min(adaptive_kl_coeff * 1.5, args.kl_coeff_max)
+                elif kl_val < args.kl_target / 1.5:
+                    adaptive_kl_coeff = max(adaptive_kl_coeff / 1.5, args.kl_coeff_min)
 
             # Periodic checkpoint
             if (iteration + 1) % args.save_every == 0:
@@ -593,6 +643,29 @@ def train(args: argparse.Namespace) -> None:
 
         with open(metrics_path, "a") as f:
             f.write(json.dumps(iter_metrics) + "\n")
+
+        # --- Early-stop guard 2: reward-variance collapse ---
+        # If reward_std stays below the floor for `args.early_stop_std_iters`
+        # consecutive iterations, GRPO has nothing left to learn from (every
+        # rollout in the group scores the same → zero advantage → no useful
+        # gradient). Continuing past this point either wastes compute (if the
+        # model has saturated) or risks the policy drifting on noise. We stop
+        # and keep the current checkpoint.
+        recent_reward_std.append(reward_std)
+        if len(recent_reward_std) > args.early_stop_std_iters:
+            recent_reward_std.pop(0)
+        if (
+            args.early_stop_std_iters > 0
+            and len(recent_reward_std) >= args.early_stop_std_iters
+            and all(s < args.early_stop_std_floor for s in recent_reward_std)
+        ):
+            logger.warning(
+                f"EARLY STOP: reward_std < {args.early_stop_std_floor} for "
+                f"{args.early_stop_std_iters} consecutive iterations — no "
+                f"learning signal (variance collapse / saturation). Halting; "
+                f"current checkpoint preserved."
+            )
+            break
 
     logger.info("Training complete.")
     if use_gradient_update and model is not None:
@@ -757,6 +830,31 @@ def parse_args() -> argparse.Namespace:
                    help="Sampling temperature for rollouts (default: 0.7)")
     p.add_argument("--max-grad-norm", type=float, default=1.0,
                    help="Gradient clipping max norm for HF training (default: 1.0)")
+
+    # --- Stabilisation: adaptive KL + trust region + early stop ---
+    # These three knobs target the policy-collapse failure mode observed in
+    # the original Qwen2.5-3B + LoRA run (learns iters 3-14, collapses iter 15).
+    p.add_argument("--adaptive-kl", action="store_true",
+                   help="Enable adaptive KL controller (Schulman 2017): scale "
+                        "kl_coeff up when measured KL exceeds the target band, "
+                        "down when below. Keeps the policy in a trust region.")
+    p.add_argument("--kl-target", type=float, default=0.05,
+                   help="Target KL per gradient step for the adaptive controller "
+                        "(default: 0.05). Measured KL is kept in [target/1.5, target*1.5].")
+    p.add_argument("--kl-coeff-min", type=float, default=0.01,
+                   help="Lower clamp for adaptive kl_coeff (default: 0.01)")
+    p.add_argument("--kl-coeff-max", type=float, default=0.5,
+                   help="Upper clamp for adaptive kl_coeff (default: 0.5)")
+    p.add_argument("--early-stop-invalid-iters", type=int, default=3,
+                   help="Halt if this many CONSECUTIVE iterations produce zero "
+                        "valid rollouts (policy collapse). 0 disables. Default: 3.")
+    p.add_argument("--early-stop-std-iters", type=int, default=5,
+                   help="Halt if reward_std stays below the floor for this many "
+                        "consecutive iterations (variance collapse / saturation). "
+                        "0 disables. Default: 5.")
+    p.add_argument("--early-stop-std-floor", type=float, default=0.02,
+                   help="reward_std floor for the variance-collapse early stop "
+                        "(default: 0.02).")
 
     # Output
     p.add_argument("--output-dir", type=str, default="./grpo_output",
