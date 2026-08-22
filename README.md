@@ -21,6 +21,8 @@ tags:
 </p>
 
 <p align="center">
+  <a href="https://rdi.berkeley.edu/agentx-agentbeats.html"><img src="https://img.shields.io/badge/AgentX%20OpenEnv%20Custom%20Track-2nd%20Place-C0C0C0" alt="2nd Place — AgentX OpenEnv Custom Track"/></a>
+  &nbsp;
   <a href="https://github.com/yonghongzhang-io/comtrade-openenv"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github" alt="GitHub"/></a>
   &nbsp;
   <a href="https://huggingface.co/spaces/yonghongzhang/comtrade-env"><img src="https://img.shields.io/badge/HF%20Space-Live%20Demo-FFD21E?logo=huggingface&logoColor=black" alt="HF Space"/></a>
@@ -49,10 +51,14 @@ And when we try to **GRPO-train** a Qwen2.5-3B on the benchmark? It enters the l
 
 ComtradeBench surfaces these failure modes because it measures **execution reliability** — not correctness, not reasoning, not fluency. The benchmark is adversarial by design: fault injection, non-stationary dynamics, and multi-dimensional scoring that reward agents who *do the job right*, not agents who *return something plausible*.
 
-**AgentBeats Phase 2 — OpenEnv Challenge** | Author: MateFin
+### 🏆 2nd Place — OpenEnv Custom Track · AgentX / AgentBeats (UC Berkeley RDI, 2026)
+
+**AgentBeats Phase 2 — OpenEnv Challenge** | Team **MateFin** · [Official results](https://rdi.berkeley.edu/agentx-agentbeats.html)
 [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) ·
 [Env Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) ·
 [Blog](https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog)
+
+*See also: our [1st-place-tie Phase 1 Web Agent Track entry](https://github.com/yonghongzhang-io/green-comtrade-bench-v2) (Google DeepMind–sponsored).*
 
 > **For judges — 30-second summary**:
 > - Ten-task OpenEnv benchmark for LLM agent reliability under adversarial API conditions (429/500, pagination drift, duplicates, totals traps, within-episode fault escalation, constrained budgets).
