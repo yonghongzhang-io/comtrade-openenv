@@ -21,7 +21,7 @@ tags:
 </p>
 
 <p align="center">
-  <a href="https://rdi.berkeley.edu/agentx-agentbeats.html"><img src="https://img.shields.io/badge/AgentX%20OpenEnv%20Custom%20Track-2nd%20Place-C0C0C0" alt="2nd Place — AgentX OpenEnv Custom Track"/></a>
+  <a href="https://berkeleyrdi.substack.com/p/agentic-ai-weekly-berkeley-rdi-may-85b"><img src="https://img.shields.io/badge/AgentX%20OpenEnv%20Custom%20Track-2nd%20Place-C0C0C0" alt="2nd Place — AgentX OpenEnv Custom Track"/></a>
   &nbsp;
   <a href="https://github.com/yonghongzhang-io/comtrade-openenv"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github" alt="GitHub"/></a>
   &nbsp;
@@ -53,7 +53,7 @@ ComtradeBench surfaces these failure modes because it measures **execution relia
 
 ### 🏆 2nd Place — OpenEnv Custom Track · AgentX / AgentBeats (UC Berkeley RDI, 2026)
 
-**AgentBeats Phase 2 — OpenEnv Challenge** | Team **MateFin** · [Official results](https://rdi.berkeley.edu/agentx-agentbeats.html)
+**AgentBeats Phase 2 — OpenEnv Challenge** | Team **MateFin** · [Official announcement (Berkeley RDI, 13 May 2026)](https://berkeleyrdi.substack.com/p/agentic-ai-weekly-berkeley-rdi-may-85b) · [Competition page](https://rdi.berkeley.edu/agentx-agentbeats.html)
 [GitHub](https://github.com/yonghongzhang-io/comtrade-openenv) ·
 [Env Space](https://huggingface.co/spaces/yonghongzhang/comtrade-env) ·
 [Blog](https://huggingface.co/spaces/yonghongzhang/comtrade-bench-blog)
