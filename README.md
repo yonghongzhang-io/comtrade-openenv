@@ -40,6 +40,11 @@ tags:
 
 ### An OpenEnv Benchmark for Reliable LLM Tool-Use Under Adversarial API Conditions
 
+> **Research update:** [The Double Measurement Confound in Agent Benchmarks](https://arxiv.org/abs/2609.09218) (under review) revisits ComtradeBench with an audit-and-repair protocol: transferring execution-critical decisions from the scaffold to the model, scoring against seeded ground truth, and reporting worst-case and tail-risk reliability across seeds.
+>
+> The original competition results below use the earlier scaffold and scoring rubric. They are distinct from the paper's repaired evaluation and should not be read as rankings from that protocol or as isolated measures of model capability. See the paper for the audit setup and results.
+
+
 What happens when **Kimi, Claude, GPT-5, Llama, and open-source Qwen2.5-7B** all run the same 10 API tasks against the same seeded environment and the same deterministic 6-dimensional judge?
 
 - Kimi and Claude produce **numerically identical** scores on every single task — not close, *identical* (97.5 avg each).
